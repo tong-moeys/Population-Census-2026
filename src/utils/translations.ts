@@ -1,0 +1,172 @@
+import { Language } from '../types/census';
+
+export const translations = {
+  km: {
+    appTitle: 'ស្ថិតិជំរឿនប្រជាជន ឆ្នាំ២០២៦',
+    appSubtitle: 'ប្រព័ន្ធគ្រប់គ្រង និងវិភាគទិន្នន័យប្រជាសាស្ត្រ និងរចនាសម្ព័ន្ធគ្រួសារ',
+    dashboard: 'ផ្ទាំងគ្រប់គ្រងទូទៅ',
+    citizens: 'បញ្ជីរាយនាមប្រជាជន',
+    households: 'រចនាសម្ព័ន្ធគ្រួសារ',
+    pyramid: 'ពីរ៉ាមីតប្រជាសាស្ត្រ',
+    analytics: 'ការវិភាគស៊ីជម្រៅ',
+    totalPopulation: 'ប្រជាជនសរុប',
+    totalHouseholds: 'ចំនួនគ្រួសារសរុប',
+    males: 'ប្រុស',
+    females: 'ស្រី',
+    genderRatio: 'សមាមាត្រភេទ (ស្រី/ប្រុស)',
+    avgAge: 'អាយុមធ្យម',
+    avgHouseholdSize: 'ទំហំគ្រួសារមធ្យម',
+    children: 'កុមារ (ក្រោម ១៨ ឆ្នាំ)',
+    workingAge: 'វ័យធ្វើការ (១៨-៥៩ ឆ្នាំ)',
+    seniors: 'មនុស្សវ័យចំណាស់ (៦០+ ឆ្នាំ)',
+    searchPlaceholder: 'ស្វែងរកតាមឈ្មោះ, អត្តលេខ, មុខរបរ, ទំនាក់ទំនង...',
+    searchHouseholds: 'ស្វែងរកតាមលេខរៀងគ្រួសារ ឬឈ្មោះមេគ្រួសារ...',
+    filterGender: 'ភេទទាំងអស់',
+    filterAll: 'ទាំងអស់',
+    filterOccupation: 'មុខរបរទាំងអស់',
+    filterAgeGroup: 'ក្រុមអាយុទាំងអស់',
+    filterRelationship: 'ទំនាក់ទំនងទាំងអស់',
+    id: 'ល.រ / ID',
+    fullName: 'គោត្តនាម និង នាម',
+    gender: 'ភេទ',
+    dob: 'ថ្ងៃខែឆ្នាំកំណើត',
+    age: 'អាយុ',
+    relationship: 'ទំនាក់ទំនងគ្រួសារ',
+    occupation: 'មុខរបរ',
+    householdId: 'លេខគ្រួសារ',
+    actions: 'សកម្មភាព',
+    details: 'ព័ត៌មានលម្អិត',
+    exportCSV: 'ទាញយក CSV',
+    exportJSON: 'ទាញយក JSON',
+    printReport: 'បោះពុម្ពរបាយការណ៍',
+    addCitizen: 'បញ្ចូលប្រជាពលរដ្ឋថ្មី',
+    editCitizen: 'កែប្រែទិន្នន័យ',
+    deleteCitizen: 'លុបចេញ',
+    save: 'រក្សាទុក',
+    cancel: 'បោះបង់',
+    confirmDelete: 'តើអ្នកពិតជាចង់លុបទិន្នន័យបុគ្គលនេះមែនទេ?',
+    viewHousehold: 'មើលគ្រួសារនេះ',
+    members: 'នាក់',
+    headOfHousehold: 'មេគ្រួសារ',
+    familyTree: 'សមាជិកក្នុងគ្រួសារ',
+    recordsFound: 'រកឃើញទិន្នន័យសរុប',
+    page: 'ទំព័រ',
+    of: 'នៃ',
+    next: 'បន្ទាប់',
+    prev: 'ថយក្រោយ',
+    noResults: 'មិនមានទិន្នន័យត្រូវគ្នានឹងការស្វែងរករបស់អ្នកទេ',
+    quickStats: 'សង្ខេបទិន្នន័យសំខាន់ៗ',
+    ageDistribution: 'ការបែងចែកតាមក្រុមអាយុ',
+    occupationDistribution: 'មុខរបរចម្បងក្នុងសហគមន៍',
+    familyDistribution: 'ទំនាក់ទំនងក្នុងគ្រួសារ',
+    yearsOld: 'ឆ្នាំ',
+    sourceData: 'ប្រភព៖ មូលដ្ឋានទិន្នន័យជំរឿន ២០២៦'
+  },
+  en: {
+    appTitle: 'Population Census 2026',
+    appSubtitle: 'Demographic Analytics & Household Census Management Platform',
+    dashboard: 'General Dashboard',
+    citizens: 'Citizens Directory',
+    households: 'Household Units',
+    pyramid: 'Age Pyramid',
+    analytics: 'Deep Analytics',
+    totalPopulation: 'Total Population',
+    totalHouseholds: 'Total Households',
+    males: 'Male',
+    females: 'Female',
+    genderRatio: 'Gender Ratio (F/M)',
+    avgAge: 'Average Age',
+    avgHouseholdSize: 'Avg Household Size',
+    children: 'Children (< 18 yrs)',
+    workingAge: 'Working Age (18-59)',
+    seniors: 'Seniors (60+ yrs)',
+    searchPlaceholder: 'Search by name, ID, occupation, relationship...',
+    searchHouseholds: 'Search by household ID or family head...',
+    filterGender: 'All Genders',
+    filterAll: 'All',
+    filterOccupation: 'All Occupations',
+    filterAgeGroup: 'All Age Groups',
+    filterRelationship: 'All Relationships',
+    id: 'ID',
+    fullName: 'Full Name',
+    gender: 'Gender',
+    dob: 'Date of Birth',
+    age: 'Age',
+    relationship: 'Relationship',
+    occupation: 'Occupation',
+    householdId: 'Household #',
+    actions: 'Actions',
+    details: 'Details',
+    exportCSV: 'Export CSV',
+    exportJSON: 'Export JSON',
+    printReport: 'Print Report',
+    addCitizen: 'Add New Citizen',
+    editCitizen: 'Edit Record',
+    deleteCitizen: 'Delete',
+    save: 'Save',
+    cancel: 'Cancel',
+    confirmDelete: 'Are you sure you want to delete this record?',
+    viewHousehold: 'View Household',
+    members: 'members',
+    headOfHousehold: 'Head of Household',
+    familyTree: 'Household Members',
+    recordsFound: 'Total records found',
+    page: 'Page',
+    of: 'of',
+    next: 'Next',
+    prev: 'Previous',
+    noResults: 'No records match your search criteria',
+    quickStats: 'Key Demographic Highlights',
+    ageDistribution: 'Age Group Distribution',
+    occupationDistribution: 'Top Occupations in Community',
+    familyDistribution: 'Household Role Distribution',
+    yearsOld: 'years',
+    sourceData: 'Source: Population Census 2026 Database'
+  }
+};
+
+export const relationshipTranslations: Record<string, { km: string; en: string }> = {
+  'ប្តី': { km: 'ប្តី', en: 'Husband' },
+  'ប្រពន្ធ': { km: 'ប្រពន្ធ', en: 'Wife' },
+  'កូន': { km: 'កូន', en: 'Child' },
+  'ម្តាយ': { km: 'ម្តាយ', en: 'Mother' },
+  'ឪពុក': { km: 'ឪពុក', en: 'Father' },
+  'ចៅ': { km: 'ចៅ', en: 'Grandchild' },
+  'កូនប្រសារ': { km: 'កូនប្រសារ', en: 'Child-in-law' },
+  'ម្ដាយក្មេក': { km: 'ម្ដាយក្មេក', en: 'Mother-in-law' },
+  'បងប្អូន': { km: 'បងប្អូន', en: 'Sibling' },
+  'ផ្សេងៗ': { km: 'ផ្សេងៗ', en: 'Other' },
+};
+
+export const occupationTranslations: Record<string, { km: string; en: string }> = {
+  'កសិករ': { km: 'កសិករ', en: 'Farmer' },
+  'សិស្ស': { km: 'សិស្ស', en: 'Student' },
+  'គ្រូបង្រៀន': { km: 'គ្រូបង្រៀន', en: 'Teacher' },
+  'គ្រូពេទ្យ': { km: 'គ្រូពេទ្យ', en: 'Doctor / Nurse' },
+  'ជរា': { km: 'ជរា', en: 'Elderly / Retired' },
+  'ផ្សេងៗ': { km: 'ផ្សេងៗ', en: 'Other' },
+  'ក្នុងបន្ទុក': { km: 'ក្នុងបន្ទុក', en: 'Dependent' },
+  'មេភូមិ': { km: 'មេភូមិ', en: 'Village Chief' },
+  'ប៉ូលិស': { km: 'ប៉ូលិស', en: 'Police' },
+  'បុគ្គលិកធនាគារ': { km: 'បុគ្គលិកធនាគារ', en: 'Bank Employee' },
+  'ជំនួយការឃុំ': { km: 'ជំនួយការឃុំ', en: 'Commune Assistant' },
+  'វិស្វករ': { km: 'វិស្វករ', en: 'Engineer' },
+};
+
+export function translateRole(role: string, lang: Language): string {
+  if (!role) return lang === 'km' ? 'មិនបានបញ្ជាក់' : 'Unspecified';
+  const match = relationshipTranslations[role.trim()];
+  return match ? match[lang] : role;
+}
+
+export function translateOccupation(occ: string, lang: Language): string {
+  if (!occ) return lang === 'km' ? 'មិនបានបញ្ជាក់' : 'Unspecified';
+  const match = occupationTranslations[occ.trim()];
+  return match ? match[lang] : occ;
+}
+
+export function translateGender(gender: string, lang: Language): string {
+  if (gender === 'ប្រុស') return lang === 'km' ? 'ប្រុស' : 'Male';
+  if (gender === 'ស្រី') return lang === 'km' ? 'ស្រី' : 'Female';
+  return lang === 'km' ? 'មិនស្គាល់' : 'Unknown';
+}

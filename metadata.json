@@ -1,0 +1,8 @@
+{
+  "name": "Population Census 2026",
+  "description": "Interactive analytics dashboard and explorer for Cambodia's 2026 Population Census data, featuring household structures, demographic distributions, and data management.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
