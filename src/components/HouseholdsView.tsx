@@ -9,7 +9,8 @@ import {
   Baby, 
   Briefcase, 
   Building2,
-  Filter
+  Filter,
+  MapPin
 } from 'lucide-react';
 import { Household, Language, Citizen } from '../types/census';
 import { translations, translateOccupation, translateRole, translateGender } from '../utils/translations';
@@ -29,17 +30,25 @@ export const HouseholdsView: React.FC<HouseholdsViewProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all');
-  const [expandedHouseholdId, setExpandedHouseholdId] = useState<number | null>(null);
+  const [villageFilter, setVillageFilter] = useState<'all' | string>('all');
+  const [expandedHouseholdKey, setExpandedHouseholdKey] = useState<string | null>(null);
 
   const filteredHouseholds = useMemo(() => {
     return households.filter(h => {
+      const v = h.village?.trim() || 'រោគ';
+      // Village filter
+      if (villageFilter !== 'all' && v !== villageFilter) {
+        return false;
+      }
+
       // Search term
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
         const matchesId = String(h.id).includes(query);
         const matchesHead = h.headName.toLowerCase().includes(query);
         const matchesMember = h.members.some(m => m.name.toLowerCase().includes(query));
-        if (!matchesId && !matchesHead && !matchesMember) {
+        const matchesVillage = v.toLowerCase().includes(query);
+        if (!matchesId && !matchesHead && !matchesMember && !matchesVillage) {
           return false;
         }
       }
@@ -51,17 +60,17 @@ export const HouseholdsView: React.FC<HouseholdsViewProps> = ({
 
       return true;
     });
-  }, [households, searchTerm, sizeFilter]);
+  }, [households, searchTerm, sizeFilter, villageFilter]);
 
-  const toggleExpand = (id: number) => {
-    setExpandedHouseholdId(prev => (prev === id ? null : id));
+  const toggleExpand = (hKey: string) => {
+    setExpandedHouseholdKey(prev => (prev === hKey ? null : hKey));
   };
 
   return (
     <div className="space-y-6">
       {/* Search and Filters */}
       <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -73,43 +82,79 @@ export const HouseholdsView: React.FC<HouseholdsViewProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium">
-              {language === 'km' ? 'ទំហំគ្រួសារ' : 'Size'}:
-            </span>
-            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs">
-              <button
-                onClick={() => setSizeFilter('all')}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  sizeFilter === 'all' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {t.filterAll}
-              </button>
-              <button
-                onClick={() => setSizeFilter('small')}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  sizeFilter === 'small' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                1-3 {t.members}
-              </button>
-              <button
-                onClick={() => setSizeFilter('medium')}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  sizeFilter === 'medium' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                4-6 {t.members}
-              </button>
-              <button
-                onClick={() => setSizeFilter('large')}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  sizeFilter === 'large' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                7+ {t.members}
-              </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Village Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">
+                {t.village}:
+              </span>
+              <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs">
+                <button
+                  onClick={() => setVillageFilter('all')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    villageFilter === 'all' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.filterVillage}
+                </button>
+                <button
+                  onClick={() => setVillageFilter('មុខឈ្នាង')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    villageFilter === 'មុខឈ្នាង' ? 'bg-amber-500 text-white font-bold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'km' ? 'ភូមិមុខឈ្នាង' : 'Mukh Chhnang'}
+                </button>
+                <button
+                  onClick={() => setVillageFilter('រោគ')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    villageFilter === 'រោគ' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'km' ? 'ភូមិរោគ' : 'Roak Village'}
+                </button>
+              </div>
+            </div>
+
+            {/* Size Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">
+                {language === 'km' ? 'ទំហំគ្រួសារ' : 'Size'}:
+              </span>
+              <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs">
+                <button
+                  onClick={() => setSizeFilter('all')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    sizeFilter === 'all' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.filterAll}
+                </button>
+                <button
+                  onClick={() => setSizeFilter('small')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    sizeFilter === 'small' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  1-3 {t.members}
+                </button>
+                <button
+                  onClick={() => setSizeFilter('medium')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    sizeFilter === 'medium' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  4-6 {t.members}
+                </button>
+                <button
+                  onClick={() => setSizeFilter('large')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition ${
+                    sizeFilter === 'large' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  7+ {t.members}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -128,10 +173,12 @@ export const HouseholdsView: React.FC<HouseholdsViewProps> = ({
       {/* Household Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredHouseholds.map(h => {
-          const isExpanded = expandedHouseholdId === h.id;
+          const hKey = `${h.village || 'រោគ'}_${h.id}`;
+          const isExpanded = expandedHouseholdKey === hKey;
+          const isMukhChhnang = h.village === 'មុខឈ្នាង';
           return (
             <div 
-              key={h.id}
+              key={hKey}
               className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden ${
                 isExpanded 
                   ? 'border-blue-500 shadow-md ring-2 ring-blue-500/10' 
@@ -140,18 +187,34 @@ export const HouseholdsView: React.FC<HouseholdsViewProps> = ({
             >
               {/* Header */}
               <div 
-                onClick={() => toggleExpand(Number(h.id))}
+                onClick={() => toggleExpand(hKey)}
                 className="p-5 cursor-pointer bg-gradient-to-b from-slate-50/50 to-white"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-sm">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
+                      isMukhChhnang ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-800'
+                    }`}>
                       #{h.id}
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5" />
-                        {language === 'km' ? 'ខ្នងផ្ទះលេខ ' : 'Household #'}{h.id}
+                      <div className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                        <span className="flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5" />
+                          {language === 'km' ? 'ខ្នងផ្ទះលេខ ' : 'Household #'}{h.id}
+                        </span>
+                        <span>•</span>
+                        {isMukhChhnang ? (
+                          <span className="inline-flex items-center gap-1 text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-[11px] font-bold">
+                            <MapPin className="w-3 h-3 text-amber-600" />
+                            <span>ភូមិមុខឈ្នាង</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 text-[11px] font-bold">
+                            <MapPin className="w-3 h-3 text-blue-600" />
+                            <span>{language === 'km' ? `ភូមិ ${h.village || 'រោគ'}` : `Village ${h.village || 'រោគ'}`}</span>
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-base font-bold text-slate-900 mt-0.5">
                         {h.headName}

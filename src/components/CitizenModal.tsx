@@ -10,7 +10,8 @@ import {
   Edit3, 
   Trash2,
   Phone,
-  Shield
+  Shield,
+  MapPin
 } from 'lucide-react';
 import { Citizen, Household, Language } from '../types/census';
 import { translations, translateGender, translateOccupation, translateRole } from '../utils/translations';
@@ -58,8 +59,13 @@ export const CitizenModal: React.FC<CitizenModalProps> = ({
                   #{citizen.originalId || citizen.id}
                 </span>
               </div>
-              <p className="text-xs text-blue-100 mt-0.5">
-                {language === 'km' ? 'ខ្នងផ្ទះលេខ ' : 'Household #'}{citizen.householdId}
+              <p className="text-xs text-blue-100 mt-0.5 flex items-center gap-1.5">
+                <span>{language === 'km' ? 'ខ្នងផ្ទះលេខ ' : 'Household #'}{citizen.householdId}</span>
+                <span>•</span>
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-emerald-300" />
+                  {language === 'km' ? `ភូមិ ${citizen.village || 'រោគ'}` : `Village ${citizen.village || 'រោគ'}`}
+                </span>
               </p>
             </div>
           </div>
@@ -92,6 +98,14 @@ export const CitizenModal: React.FC<CitizenModalProps> = ({
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-slate-500 font-medium block">{t.village}</span>
+              <div className="mt-1 flex items-center gap-1 font-semibold text-emerald-800">
+                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{language === 'km' ? `ភូមិ ${citizen.village || 'រោគ'}` : `Village ${citizen.village || 'រោគ'}`}</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <span className="text-slate-500 font-medium block">{t.dob}</span>
               <div className="mt-1 flex items-center gap-1 font-mono text-slate-900">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -107,7 +121,7 @@ export const CitizenModal: React.FC<CitizenModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 col-span-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <span className="text-slate-500 font-medium block">{t.occupation}</span>
               <div className="mt-1 flex items-center gap-1.5 text-slate-900 font-semibold">
                 <Briefcase className="w-4 h-4 text-emerald-600" />

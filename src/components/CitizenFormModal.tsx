@@ -26,6 +26,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
   const [gender, setGender] = useState('ប្រុស');
   const [dob, setDob] = useState('');
   const [age, setAge] = useState<number | ''>('');
+  const [village, setVillage] = useState('រោគ');
   const [relationship, setRelationship] = useState('កូន');
   const [occupation, setOccupation] = useState('កសិករ');
   const [householdId, setHouseholdId] = useState<number | ''>(1);
@@ -37,6 +38,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       setGender(citizenToEdit.gender);
       setDob(citizenToEdit.dob || '');
       setAge(citizenToEdit.age);
+      setVillage(citizenToEdit.village?.trim() || 'រោគ');
       setRelationship(citizenToEdit.relationship);
       setOccupation(citizenToEdit.occupation);
       setHouseholdId(citizenToEdit.householdId);
@@ -46,6 +48,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       setGender('ប្រុស');
       setDob('');
       setAge('');
+      setVillage('រោគ');
       setRelationship('កូន');
       setOccupation('កសិករ');
       setHouseholdId(1);
@@ -63,6 +66,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       gender,
       dob: dob.trim(),
       age: typeof age === 'number' ? age : parseInt(String(age), 10) || 0,
+      village: village.trim() || 'រោគ',
       relationship,
       occupation,
       householdId: typeof householdId === 'number' ? householdId : parseInt(String(householdId), 10) || 1,
@@ -155,6 +159,50 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
               />
             </div>
 
+            {/* Village (ភូមិ) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span>{t.village} *</span>
+                <span className="text-[10px] text-slate-400 font-normal">{language === 'km' ? 'មុខឈ្នាង ឬ រោគ' : 'Mukh Chhnang or Roak'}</span>
+              </label>
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  required
+                  value={village}
+                  onChange={(e) => setVillage(e.target.value)}
+                  placeholder="មុខឈ្នាង ឬ រោគ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setVillage('មុខឈ្នាង')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
+                      village === 'មុខឈ្នាង' 
+                        ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold' 
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    ភូមិមុខឈ្នាង
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVillage('រោគ')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
+                      village === 'រោគ' 
+                        ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold' 
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    ភូមិរោគ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             {/* Household # */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -170,9 +218,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
             {/* Relationship */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -190,6 +236,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
 
             {/* Occupation */}
             <div>
@@ -208,7 +255,6 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
                 ))}
               </select>
             </div>
-          </div>
 
           {/* Buttons */}
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">

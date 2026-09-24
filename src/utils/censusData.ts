@@ -48,6 +48,13 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
       householdId = isNaN(parsedH) ? 0 : parsedH;
     }
 
+    const rawVillage = row.length > 8 ? String(row[8] ?? '').trim() : '';
+    // User instruction: row 1-390 is village 'មុខឈ្នាង', after that is village 'រោគ'
+    // Both catchment villages (មុខឈ្នាង & រោគ) belong to Rouk Primary School (ប.សរោគ)
+    const defaultVillage = sequenceId <= 390 ? 'មុខឈ្នាង' : 'រោគ';
+    const village = rawVillage || defaultVillage;
+    const school = 'ប.សរោគ';
+
     citizens.push({
       id: sequenceId,
       originalId,
@@ -57,24 +64,28 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
       age,
       relationship: relationship || 'ផ្សេងៗ',
       occupation: occupation || 'ផ្សេងៗ',
-      householdId: householdId || 1
+      householdId: householdId || 1,
+      school,
+      village
     });
 
     sequenceId++;
   }
 
   // Group by Household
-  const householdMap = new Map<number, Citizen[]>();
+  // Note: Household numbers restart for each village, so we key by village + householdId
+  const householdMap = new Map<string, Citizen[]>();
   for (const citizen of citizens) {
-    const hId = citizen.householdId;
-    if (!householdMap.has(hId)) {
-      householdMap.set(hId, []);
+    const v = citizen.village || 'រោគ';
+    const hKey = `${v}_${citizen.householdId}`;
+    if (!householdMap.has(hKey)) {
+      householdMap.set(hKey, []);
     }
-    householdMap.get(hId)!.push(citizen);
+    householdMap.get(hKey)!.push(citizen);
   }
 
   const households: Household[] = [];
-  householdMap.forEach((members, id) => {
+  householdMap.forEach((members) => {
     // Sort members in household logically: husband/father first, then wife/mother, then children, then grandchildren
     const rolePriority = (r: string): number => {
       if (r === 'ប្តី' || r === 'ឪពុក') return 1;
@@ -92,6 +103,9 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
       || members.find(m => m.relationship === 'ម្តាយ') 
       || members[0];
 
+    const hId = members[0]?.householdId || 1;
+    const hVillage = members[0]?.village || 'រោគ';
+
     const malesCount = members.filter(m => m.gender === 'ប្រុស').length;
     const femalesCount = members.filter(m => m.gender === 'ស្រី').length;
     const childrenCount = members.filter(m => m.age < 18).length;
@@ -105,8 +119,9 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
     }
 
     households.push({
-      id,
-      headName: head?.name || `គ្រួសារ #${id}`,
+      id: hId,
+      headName: head?.name || `គ្រួសារ #${hId}`,
+      village: hVillage,
       membersCount: members.length,
       members,
       malesCount,
@@ -118,8 +133,13 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
     });
   });
 
-  // Sort households by numeric ID
-  households.sort((a, b) => (Number(a.id) - Number(b.id)));
+  // Sort households: មុខឈ្នាង first, then រោគ; within village by numeric household ID
+  households.sort((a, b) => {
+    if (a.village !== b.village) {
+      return a.village === 'មុខឈ្នាង' ? -1 : 1;
+    }
+    return Number(a.id) - Number(b.id);
+  });
 
   // Calculate Statistics
   const totalPopulation = citizens.length;

@@ -12,7 +12,8 @@ import {
   Users,
   Building2,
   Calendar,
-  X
+  X,
+  MapPin
 } from 'lucide-react';
 import { Citizen, Language } from '../types/census';
 import { translations, translateOccupation, translateRole, translateGender } from '../utils/translations';
@@ -29,7 +30,7 @@ interface CitizensTableProps {
   onClearInitialFilters?: () => void;
 }
 
-type SortField = 'id' | 'name' | 'age' | 'householdId' | 'dob';
+type SortField = 'id' | 'name' | 'age' | 'householdId' | 'dob' | 'village';
 type SortOrder = 'asc' | 'desc';
 
 export const CitizensTable: React.FC<CitizensTableProps> = ({
@@ -49,6 +50,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [genderFilter, setGenderFilter] = useState(initialGenderFilter || 'all');
   const [occupationFilter, setOccupationFilter] = useState(initialOccupationFilter || 'all');
+  const [villageFilter, setVillageFilter] = useState('all');
   const [ageRangeFilter, setAgeRangeFilter] = useState('all');
   const [householdFilter, setHouseholdFilter] = useState('');
 
@@ -69,6 +71,17 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
     return Array.from(set).sort();
   }, [citizens]);
 
+  // Distinct villages for filter dropdown
+  const distinctVillages = useMemo(() => {
+    const set = new Set<string>();
+    citizens.forEach(c => {
+      const v = c.village?.trim() || 'រោគ';
+      if (v) set.add(v);
+    });
+    if (!set.has('រោគ')) set.add('រោគ');
+    return Array.from(set).sort();
+  }, [citizens]);
+
   // Handle Sort Toggle
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -83,6 +96,8 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
   // Filtered and Sorted Citizens
   const filteredCitizens = useMemo(() => {
     return citizens.filter(c => {
+      const citizenVillage = c.village?.trim() || 'រោគ';
+
       // Search term
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
@@ -92,7 +107,8 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         const matchesRel = c.relationship.toLowerCase().includes(query);
         const matchesDob = c.dob.toLowerCase().includes(query);
         const matchesHId = String(c.householdId).includes(query);
-        if (!matchesName && !matchesId && !matchesOcc && !matchesRel && !matchesDob && !matchesHId) {
+        const matchesVillage = citizenVillage.toLowerCase().includes(query);
+        if (!matchesName && !matchesId && !matchesOcc && !matchesRel && !matchesDob && !matchesHId && !matchesVillage) {
           return false;
         }
       }
@@ -104,6 +120,11 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
 
       // Occupation filter
       if (occupationFilter !== 'all' && c.occupation !== occupationFilter) {
+        return false;
+      }
+
+      // Village filter
+      if (villageFilter !== 'all' && citizenVillage !== villageFilter) {
         return false;
       }
 
@@ -131,6 +152,10 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         comparison = a.name.localeCompare(b.name, 'km');
       } else if (sortField === 'age') {
         comparison = a.age - b.age;
+      } else if (sortField === 'village') {
+        const vA = a.village?.trim() || 'រោគ';
+        const vB = b.village?.trim() || 'រោគ';
+        comparison = vA.localeCompare(vB, 'km');
       } else if (sortField === 'householdId') {
         comparison = Number(a.householdId) - Number(b.householdId);
       } else if (sortField === 'dob') {
@@ -138,7 +163,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [citizens, searchTerm, genderFilter, occupationFilter, ageRangeFilter, householdFilter, sortField, sortOrder]);
+  }, [citizens, searchTerm, genderFilter, occupationFilter, villageFilter, ageRangeFilter, householdFilter, sortField, sortOrder]);
 
   // Paginated records
   const totalPages = Math.ceil(filteredCitizens.length / pageSize) || 1;
@@ -152,17 +177,18 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
     setSearchTerm('');
     setGenderFilter('all');
     setOccupationFilter('all');
+    setVillageFilter('all');
     setAgeRangeFilter('all');
     setHouseholdFilter('');
     setCurrentPage(1);
     if (onClearInitialFilters) onClearInitialFilters();
   };
 
-  const hasActiveFilters = searchTerm || genderFilter !== 'all' || occupationFilter !== 'all' || ageRangeFilter !== 'all' || householdFilter;
+  const hasActiveFilters = searchTerm || genderFilter !== 'all' || occupationFilter !== 'all' || villageFilter !== 'all' || ageRangeFilter !== 'all' || householdFilter;
 
   // Export filtered to CSV
   const handleExportFilteredCSV = () => {
-    const headers = ['ID', 'OriginalID', 'Name', 'Gender', 'DOB', 'Age', 'Relationship', 'Occupation', 'HouseholdID'];
+    const headers = ['ID', 'OriginalID', 'Name', 'Gender', 'DOB', 'Age', 'Village', 'Relationship', 'Occupation', 'HouseholdID'];
     const rows = filteredCitizens.map(c => [
       c.id,
       `"${c.originalId}"`,
@@ -170,6 +196,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
       `"${c.gender}"`,
       `"${c.dob}"`,
       c.age,
+      `"${c.village?.trim() || 'រោគ'}"`,
       `"${c.relationship}"`,
       `"${c.occupation}"`,
       c.householdId
@@ -230,7 +257,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         </div>
 
         {/* Filter dropdowns */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
           {/* Gender */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 mb-1">
@@ -261,6 +288,25 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
               {distinctOccupations.map(occ => (
                 <option key={occ} value={occ}>
                   {translateOccupation(occ, language)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Village (ភូមិ) */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+              {t.village}
+            </label>
+            <select
+              value={villageFilter}
+              onChange={(e) => { setVillageFilter(e.target.value); setCurrentPage(1); }}
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none font-medium"
+            >
+              <option value="all">{t.filterVillage}</option>
+              {distinctVillages.map(v => (
+                <option key={v} value={v}>
+                  {language === 'km' ? `ភូមិ ${v}` : `Village ${v}`}
                 </option>
               ))}
             </select>
@@ -369,6 +415,16 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
                     <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                   </div>
                 </th>
+                <th 
+                  onClick={() => handleSort('village')} 
+                  className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition"
+                >
+                  <div className="flex items-center gap-1 text-emerald-700">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{t.village}</span>
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                  </div>
+                </th>
                 <th className="py-3 px-4 hidden sm:table-cell">
                   <span>{t.relationship}</span>
                 </th>
@@ -392,7 +448,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
             <tbody className="divide-y divide-slate-100">
               {paginatedCitizens.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
+                  <td colSpan={10} className="py-12 text-center text-slate-500">
                     <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-medium text-slate-700">{t.noResults}</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -429,6 +485,19 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800">
                         {c.age} <span className="text-[11px] font-normal text-slate-400">{t.yearsOld}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {c.village?.trim() === 'មុខឈ្នាង' ? (
+                          <span className="inline-flex items-center gap-1 font-semibold text-xs text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                            <MapPin className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>ភូមិមុខឈ្នាង</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-semibold text-xs text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">
+                            <MapPin className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span>{c.village?.trim() || 'រោគ'}</span>
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-slate-600 hidden sm:table-cell">
                         <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">

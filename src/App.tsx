@@ -1,15 +1,28 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { User, onAuthStateChanged } from 'firebase/auth';
 import { loadParsedCensus } from './utils/censusData';
-import { Citizen, DemographicStats, Household, Language, ViewTab } from './types/census';
+import { Citizen, DemographicStats, Household, Language, ViewTab, EnrollmentStatus } from './types/census';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { CitizensTable } from './components/CitizensTable';
 import { HouseholdsView } from './components/HouseholdsView';
 import { AgePyramidView } from './components/AgePyramidView';
 import { AnalyticsView } from './components/AnalyticsView';
+import { SchoolReportView } from './components/SchoolReportView';
+import { EnrollmentCampaignView } from './components/EnrollmentCampaignView';
 import { CitizenModal } from './components/CitizenModal';
 import { CitizenFormModal } from './components/CitizenFormModal';
 import { translations } from './utils/translations';
+import { 
+  auth, 
+  signInWithGoogle, 
+  signOutUser, 
+  syncCitizenToFirestore, 
+  deleteCitizenFromFirestore, 
+  batchSyncCitizens,
+  fetchCitizensFromFirestore,
+  testConnection
+} from './firebase';
 
 export const App: React.FC = () => {
   // Initialize with the 2,071 census records
@@ -17,6 +30,13 @@ export const App: React.FC = () => {
   const [citizens, setCitizens] = useState<Citizen[]>(initialData.citizens);
   const [language, setLanguage] = useState<Language>('km');
   const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
+
+  // Firebase Auth & Cloud Sync States
+  const [user, setUser] = useState<User | null>(null);
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<number>(0);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // Modals & Details
   const [selectedCitizen, setSelectedCitizen] = useState<Citizen | null>(null);
@@ -29,22 +49,131 @@ export const App: React.FC = () => {
 
   const t = translations[language];
 
+  // Check Firebase connection and listen to auth changes
+  useEffect(() => {
+    testConnection().then(connected => {
+      setIsFirebaseConnected(connected);
+    });
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        setIsFirebaseConnected(true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const showToast = (message: string) => {
+    setSyncToast(message);
+    setTimeout(() => {
+      setSyncToast(null);
+    }, 4000);
+  };
+
+  // Cloud Sync Handler
+  const handleSyncToFirebase = async () => {
+    if (!user) {
+      try {
+        const signedInUser = await signInWithGoogle();
+        if (!signedInUser) {
+          showToast(language === 'km' ? 'សូមចូលគណនី Google ដើម្បីសមកាលកម្មទិន្នន័យ' : 'Please sign in to sync with Firebase');
+          return;
+        }
+      } catch (err) {
+        console.info('Sign-in cancelled or not completed:', err);
+        showToast(language === 'km' ? 'សូមចូលគណនី Google ជាមុនសិន' : 'Please sign in with Google first');
+        return;
+      }
+    }
+
+    try {
+      setIsSyncing(true);
+      setSyncProgress(0);
+      showToast(language === 'km' ? 'កំពុងផ្ញើទិន្នន័យទៅកាន់ Firebase...' : 'Uploading records to Firebase Cloud...');
+      
+      const count = await batchSyncCitizens(citizens, (p) => {
+        setSyncProgress(p);
+      });
+
+      showToast(language === 'km' 
+        ? `បានសមកាលកម្មទិន្នន័យពលរដ្ឋ ${count.toLocaleString()} នាក់ ទៅ Firebase ដោយជោគជ័យ!` 
+        : `Successfully synced ${count.toLocaleString()} records to Firebase!`);
+    } catch (err) {
+      console.warn('Sync notice:', err);
+      showToast(language === 'km' ? 'មានបញ្ហាក្នុងការសមកាលកម្ម Firebase' : 'Error syncing to Firebase');
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress(0);
+    }
+  };
+
+  // Cloud Fetch Handler
+  const handleLoadFromFirebase = async () => {
+    try {
+      setIsSyncing(true);
+      showToast(language === 'km' ? 'កំពុងទាញយកទិន្នន័យពី Firebase...' : 'Fetching data from Firebase...');
+      const cloudCitizens = await fetchCitizensFromFirestore();
+      if (cloudCitizens && cloudCitizens.length > 0) {
+        setCitizens(cloudCitizens);
+        showToast(language === 'km' 
+          ? `បានទាញយកទិន្នន័យ ${cloudCitizens.length.toLocaleString()} នាក់ (ភូមិ រោគ) ពី Firebase ដោយជោគជ័យ!`
+          : `Loaded ${cloudCitizens.length.toLocaleString()} records from Firebase!`);
+      } else {
+        showToast(language === 'km' ? 'ពុំមានទិន្នន័យលើ Cloud នៅឡើយទេ សូមចុច Sync' : 'No records found in cloud yet, please sync');
+      }
+    } catch (err) {
+      console.warn('Fetch note:', err);
+      showToast(language === 'km' ? 'មានបញ្ហាក្នុងការទាញយកទិន្នន័យពី Firebase' : 'Error fetching from Firebase');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Google Login / Logout
+  const handleSignIn = async () => {
+    try {
+      const u = await signInWithGoogle();
+      if (u) {
+        showToast(language === 'km' ? `ស្វាគមន៍ ${u.displayName || u.email}` : `Welcome ${u.displayName || u.email}`);
+      } else {
+        showToast(language === 'km' ? 'ការចូលគណនីត្រូវបានបោះបង់' : 'Sign-in cancelled');
+      }
+    } catch (err) {
+      console.info('Sign in note:', err);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      showToast(language === 'km' ? 'បានចាកចេញពីប្រព័ន្ធ' : 'Signed out successfully');
+    } catch (err) {
+      console.info('Sign out note:', err);
+    }
+  };
+
   // Recalculate households & stats whenever citizens array changes
   const { households, stats } = useMemo(() => {
-    const householdMap = new Map<number, Citizen[]>();
+    const householdMap = new Map<string, Citizen[]>();
     for (const citizen of citizens) {
-      const hId = citizen.householdId;
-      if (!householdMap.has(hId)) {
-        householdMap.set(hId, []);
+      const v = citizen.village || 'រោគ';
+      const hKey = `${v}_${citizen.householdId}`;
+      if (!householdMap.has(hKey)) {
+        householdMap.set(hKey, []);
       }
-      householdMap.get(hId)!.push(citizen);
+      householdMap.get(hKey)!.push(citizen);
     }
 
     const hList: Household[] = [];
-    householdMap.forEach((members, id) => {
+    householdMap.forEach((members) => {
       const head = members.find(m => m.relationship === 'ប្តី' || m.relationship === 'ឪពុក') 
         || members.find(m => m.relationship === 'ម្តាយ') 
         || members[0];
+
+      const hId = members[0]?.householdId || 1;
+      const hVillage = members[0]?.village || 'រោគ';
 
       const malesCount = members.filter(m => m.gender === 'ប្រុស').length;
       const femalesCount = members.filter(m => m.gender === 'ស្រី').length;
@@ -59,8 +188,9 @@ export const App: React.FC = () => {
       }
 
       hList.push({
-        id,
-        headName: head?.name || `គ្រួសារ #${id}`,
+        id: hId,
+        headName: head?.name || `គ្រួសារ #${hId}`,
+        village: hVillage,
         membersCount: members.length,
         members,
         malesCount,
@@ -72,7 +202,12 @@ export const App: React.FC = () => {
       });
     });
 
-    hList.sort((a, b) => Number(a.id) - Number(b.id));
+    hList.sort((a, b) => {
+      if (a.village !== b.village) {
+        return a.village === 'មុខឈ្នាង' ? -1 : 1;
+      }
+      return Number(a.id) - Number(b.id);
+    });
 
     const totalPopulation = citizens.length;
     const totalHouseholds = hList.length;
@@ -182,13 +317,23 @@ export const App: React.FC = () => {
     return households.find(h => h.id === selectedCitizen.householdId) || null;
   }, [selectedCitizen, households]);
 
-  // Handlers for Add, Edit, Delete
+  // Handlers for Add, Edit, Delete with Firebase persistence
   const handleSaveCitizen = useCallback((citizenData: Omit<Citizen, 'id'> & { id?: number }) => {
     if (citizenData.id) {
       // Edit
-      setCitizens(prev => prev.map(c => c.id === citizenData.id ? { ...c, ...citizenData } as Citizen : c));
+      const updatedRecord: Citizen = { 
+        ...citizenData,
+        village: citizenData.village?.trim() || 'រោគ'
+      } as Citizen;
+      setCitizens(prev => prev.map(c => c.id === citizenData.id ? updatedRecord : c));
       if (selectedCitizen && selectedCitizen.id === citizenData.id) {
-        setSelectedCitizen(prev => prev ? { ...prev, ...citizenData } as Citizen : null);
+        setSelectedCitizen(updatedRecord);
+      }
+      // If user is authenticated, sync to Firestore
+      if (user) {
+        syncCitizenToFirestore(updatedRecord).catch(err => {
+          console.warn('Background sync failed:', err);
+        });
       }
     } else {
       // Add
@@ -198,18 +343,32 @@ export const App: React.FC = () => {
           ...citizenData,
           id: nextId,
           originalId: citizenData.originalId || nextId,
+          school: citizenData.school || 'ប.សរោគ',
+          village: citizenData.village?.trim() || 'រោគ'
         };
+        if (user) {
+          syncCitizenToFirestore(newRecord).catch(err => {
+            console.warn('Background sync failed:', err);
+          });
+        }
         return [newRecord, ...prev];
       });
     }
-  }, [selectedCitizen]);
+    showToast(language === 'km' ? 'ទិន្នន័យត្រូវបានរក្សាទុក' : 'Record saved successfully');
+  }, [selectedCitizen, user, language]);
 
   const handleDeleteCitizen = useCallback((id: number) => {
     setCitizens(prev => prev.filter(c => c.id !== id));
     if (selectedCitizen && selectedCitizen.id === id) {
       setSelectedCitizen(null);
     }
-  }, [selectedCitizen]);
+    if (user) {
+      deleteCitizenFromFirestore(id).catch(err => {
+        console.warn('Background delete failed:', err);
+      });
+    }
+    showToast(language === 'km' ? 'បានលុបទិន្នន័យរួចរាល់' : 'Record deleted successfully');
+  }, [selectedCitizen, user, language]);
 
   // Quick filters from dashboard
   const handleFilterByOccupation = (occ: string) => {
@@ -222,9 +381,30 @@ export const App: React.FC = () => {
     setCurrentTab('citizens');
   };
 
+  const handleUpdateChildStatus = useCallback(async (citizenId: number, status: EnrollmentStatus) => {
+    setCitizens(prev => prev.map(c => c.id === citizenId ? { ...c, enrollmentStatus: status } : c));
+    const target = citizens.find(c => c.id === citizenId);
+    if (target) {
+      const updated = { ...target, enrollmentStatus: status };
+      if (user) {
+        syncCitizenToFirestore(updated).catch(err => {
+          console.info('Status save note:', err);
+        });
+      }
+    }
+    const label = status === 'enrolled' 
+      ? (language === 'km' ? 'បានចុះឈ្មោះចូលរៀន' : 'Enrolled')
+      : status === 'contacted'
+        ? (language === 'km' ? 'បានចុះជួប/តាមដាន' : 'Visited')
+        : status === 'moved'
+          ? (language === 'km' ? 'ផ្លាស់ទីលំនៅ' : 'Moved')
+          : (language === 'km' ? 'មិនទាន់ចុះឈ្មោះ' : 'Pending');
+    showToast(`${language === 'km' ? 'ស្ថានភាព៖ ' : 'Status: '}${label}`);
+  }, [citizens, user, language]);
+
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['ID', 'OriginalID', 'Name', 'Gender', 'DOB', 'Age', 'Relationship', 'Occupation', 'HouseholdID'];
+    const headers = ['ID', 'OriginalID', 'Name', 'Gender', 'DOB', 'Age', 'Relationship', 'Occupation', 'HouseholdID', 'School'];
     const rows = citizens.map(c => [
       c.id,
       `"${c.originalId}"`,
@@ -234,13 +414,14 @@ export const App: React.FC = () => {
       c.age,
       `"${c.relationship}"`,
       `"${c.occupation}"`,
-      c.householdId
+      c.householdId,
+      `"${c.school || 'ប.សរោគ'}"`
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `population-census-2026-cambodia.csv`);
+    link.setAttribute('download', `population-census-2026-cambodia-rouk.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -250,6 +431,7 @@ export const App: React.FC = () => {
   const handleExportJSON = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify({
       censusYear: 2026,
+      schoolCatchment: 'ប.សរោគ (Rouk Primary School)',
       exportedAt: new Date().toISOString(),
       stats,
       citizens,
@@ -257,7 +439,7 @@ export const App: React.FC = () => {
     }, null, 2));
     const link = document.createElement('a');
     link.setAttribute('href', dataStr);
-    link.setAttribute('download', `population-census-2026.json`);
+    link.setAttribute('download', `population-census-2026-rouk-primary-school.json`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -269,6 +451,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-khmer">
+      {/* Toast Notification */}
+      {syncToast && (
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>{syncToast}</span>
+        </div>
+      )}
+
       {/* Header */}
       <Header
         currentTab={currentTab}
@@ -283,6 +473,14 @@ export const App: React.FC = () => {
           setIsFormModalOpen(true);
         }}
         totalRecords={citizens.length}
+        user={user}
+        onSignIn={handleSignIn}
+        onSignOut={handleSignOut}
+        onSyncToFirebase={handleSyncToFirebase}
+        onLoadFromFirebase={handleLoadFromFirebase}
+        isSyncing={isSyncing}
+        syncProgress={syncProgress}
+        isFirebaseConnected={isFirebaseConnected}
       />
 
       {/* Main Container */}
@@ -294,6 +492,23 @@ export const App: React.FC = () => {
             onNavigateTab={setCurrentTab}
             onFilterByOccupation={handleFilterByOccupation}
             onFilterByGender={handleFilterByGender}
+          />
+        )}
+
+        {currentTab === 'school-report' && (
+          <SchoolReportView
+            citizens={citizens}
+            language={language}
+          />
+        )}
+
+        {currentTab === 'enrollment' && (
+          <EnrollmentCampaignView
+            citizens={citizens}
+            households={households}
+            language={language}
+            onUpdateCitizenStatus={handleUpdateChildStatus}
+            onSelectCitizen={setSelectedCitizen}
           />
         )}
 
@@ -375,12 +590,14 @@ export const App: React.FC = () => {
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">{t.appTitle}</span>
+            <span className="font-semibold text-slate-700">សាលាបឋមសិក្សា រោគ (ប.សរោគ)</span>
             <span>•</span>
-            <span>{t.sourceData}</span>
+            <span>{t.appTitle}</span>
+            <span>•</span>
+            <span className="text-emerald-600 font-medium">Firebase Connected</span>
           </div>
           <div>
-            <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ ឆ្នាំ២០២៦' : 'Population & Household Census System 2026'}</span>
+            <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ និងស្ថិតិតំបន់សេវាសាលារៀន ឆ្នាំ២០២៦' : 'Catchment Census & Demographic Management System 2026'}</span>
           </div>
         </div>
       </footer>

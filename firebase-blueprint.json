@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "citizen": {
+      "title": "Citizen",
+      "description": "Demographic and census record of a citizen residing in the school catchment area",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Numeric identifier of citizen" },
+        "originalId": { "type": "string", "maxLength": 100, "description": "Original ID in census" },
+        "name": { "type": "string", "maxLength": 150, "description": "Citizen full name in Khmer or Latin" },
+        "gender": { "type": "string", "enum": ["ប្រុស", "ស្រី", "Male", "Female"], "description": "Gender" },
+        "dob": { "type": "string", "maxLength": 50, "description": "Date of birth" },
+        "age": { "type": "number", "description": "Age in years" },
+        "relationship": { "type": "string", "maxLength": 100, "description": "Relationship to head of household" },
+        "occupation": { "type": "string", "maxLength": 100, "description": "Occupation / job status" },
+        "householdId": { "type": "number", "description": "Household unit identifier" },
+        "school": { "type": "string", "maxLength": 100, "description": "School catchment name (e.g., ប.សរោគ)" },
+        "village": { "type": "string", "maxLength": 100, "description": "Village name in catchment area (defaults to រោគ if empty)" }
+      },
+      "required": ["id", "name", "gender", "age", "relationship", "occupation", "householdId"]
+    },
+    "school_statistic": {
+      "title": "SchoolStatistic",
+      "description": "School catchment area census summary report by age cohort according to MoEYS standards",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 100, "description": "Identifier of the school" },
+        "schoolName": { "type": "string", "maxLength": 200, "description": "Khmer name of the school (e.g. ប.សរោគ, ប.សស្ពានស្រែង)" },
+        "totalPopulation": { "type": "number", "description": "Total population count" },
+        "totalHouseholds": { "type": "number", "description": "Total households count" }
+      },
+      "required": ["schoolId", "schoolName", "totalPopulation", "totalHouseholds"]
+    },
+    "user_profile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile and role details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "maxLength": 150, "description": "User display name" },
+        "email": { "type": "string", "maxLength": 200, "description": "User email address" },
+        "photoURL": { "type": "string", "maxLength": 500, "description": "User avatar photo URL" },
+        "role": { "type": "string", "enum": ["admin", "teacher", "editor", "viewer"], "description": "Role level" }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/citizens/{citizenId}": {
+      "schema": { "$ref": "#/entities/citizen" },
+      "description": "Individual census records of citizens residing in primary school catchment areas"
+    },
+    "/schools/{schoolId}": {
+      "schema": { "$ref": "#/entities/school_statistic" },
+      "description": "Catchment statistics for schools in the cluster (Rouk Primary School, Spean Sraeng, Mukh Chhnang, Pongro Kandal)"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/user_profile" },
+      "description": "Profiles for registered administrators and teachers"
+    }
+  }
+}

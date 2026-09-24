@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security Helpers
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Citizen Validator
+    function isValidCitizen(data) {
+      return data.keys().hasAll(['id', 'name', 'gender', 'age', 'relationship', 'occupation', 'householdId']) &&
+        data.keys().hasOnly(['id', 'originalId', 'name', 'gender', 'dob', 'age', 'relationship', 'occupation', 'householdId', 'school', 'village', 'createdAt', 'updatedAt']) &&
+        data.id is number &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+        data.gender is string && (data.gender == 'ប្រុស' || data.gender == 'ស្រី' || data.gender == 'Male' || data.gender == 'Female') &&
+        data.age is number && data.age >= 0 && data.age <= 130 &&
+        data.householdId is number && data.householdId >= 1 &&
+        data.relationship is string && data.relationship.size() <= 100 &&
+        data.occupation is string && data.occupation.size() <= 100 &&
+        (!('school' in data) || (data.school is string && data.school.size() <= 100)) &&
+        (!('village' in data) || (data.village is string && data.village.size() <= 100)) &&
+        (!('originalId' in data) || (data.originalId is string && data.originalId.size() <= 100)) &&
+        (!('dob' in data) || (data.dob is string && data.dob.size() <= 50));
+    }
+
+    // School Catchment Statistics Validator
+    function isValidSchool(data) {
+      return data.keys().hasAll(['schoolId', 'schoolName', 'totalPopulation', 'totalHouseholds']) &&
+        data.schoolId is string && data.schoolId.size() <= 100 &&
+        data.schoolName is string && data.schoolName.size() <= 200 &&
+        data.totalPopulation is number && data.totalPopulation >= 0 &&
+        data.totalHouseholds is number && data.totalHouseholds >= 0;
+    }
+
+    // User Profile Validator
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'email', 'photoURL', 'role', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == request.auth.uid &&
+        data.email is string && data.email.size() <= 200 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 150)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+        (!('role' in data) || (data.role is string && (data.role == 'admin' || data.role == 'teacher' || data.role == 'editor' || data.role == 'viewer')));
+    }
+
+    // Citizens Collection - Public read for community census & school planning, authenticated write
+    match /citizens/{citizenId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(citizenId) && isValidCitizen(incoming());
+      allow update: if isSignedIn() && isValidId(citizenId) && isValidCitizen(incoming());
+      allow delete: if isSignedIn() && isValidId(citizenId);
+    }
+
+    // Schools Summary Collection
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(schoolId) && isValidSchool(incoming());
+      allow update: if isSignedIn() && isValidId(schoolId) && isValidSchool(incoming());
+      allow delete: if isSignedIn() && isValidId(schoolId);
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+  }
+}

@@ -9,7 +9,8 @@ import {
   HeartHandshake, 
   ChevronRight,
   ShieldAlert,
-  GraduationCap
+  GraduationCap,
+  MapPin
 } from 'lucide-react';
 import { DemographicStats, Language, ViewTab } from '../types/census';
 import { translations, translateOccupation, translateRole } from '../utils/translations';
@@ -57,11 +58,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </h2>
           <p className="mt-2 text-blue-100 text-sm sm:text-base leading-relaxed">
             {language === 'km' 
-              ? 'ទិន្នន័យប្រជាសាស្ត្រថ្នាក់មូលដ្ឋាន គ្របដណ្តប់ប្រជាពលរដ្ឋសរុប ' + stats.totalPopulation.toLocaleString() + ' នាក់ ក្នុង ' + stats.totalHouseholds + ' គ្រួសារ។' 
-              : 'Official local administrative census records covering ' + stats.totalPopulation.toLocaleString() + ' registered residents across ' + stats.totalHouseholds + ' households.'}
+              ? 'ទិន្នន័យប្រជាសាស្ត្រថ្នាក់មូលដ្ឋាន គ្របដណ្តប់ប្រជាពលរដ្ឋសរុប ' + stats.totalPopulation.toLocaleString() + ' នាក់ ក្នុង ' + stats.totalHouseholds + ' គ្រួសារ (ភូមិមុខឈ្នាង row 1-390: ៣៩០ នាក់ និង ភូមិរោគ: ១,៦៧២ នាក់)។' 
+              : 'Official local census records covering ' + stats.totalPopulation.toLocaleString() + ' registered residents across ' + stats.totalHouseholds + ' households (Mukh Chhnang & Roak Villages).'}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={() => onNavigateTab('enrollment')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95 ring-2 ring-emerald-300/50"
+            >
+              <Baby className="w-4 h-4 text-slate-950" />
+              <span>{language === 'km' ? 'បញ្ជីប្រមូលកុមារចូលរៀន (២ក្រុម)' : 'Enrollment Lists (2 Groups)'}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onNavigateTab('school-report')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95"
+            >
+              <GraduationCap className="w-4 h-4 text-slate-900" />
+              <span>{language === 'km' ? 'របាយការណ៍ (តាមភូមិ & សាលា)' : 'Catchment & Village Report'}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
             <button
               onClick={() => onNavigateTab('citizens')}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-800 font-semibold text-xs sm:text-sm rounded-xl shadow-xs hover:bg-blue-50 transition active:scale-95"
@@ -181,6 +198,87 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>{t.seniors}: {stats.ageGroups.senior60plus}</span>
           </div>
         </div>
+      </div>
+
+      {/* Official Villages Breakdown Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Village 1: Mukh Chhnang */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-xl p-5 border border-amber-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
+              <MapPin className="w-3.5 h-3.5 text-amber-700" />
+              <span>{language === 'km' ? 'ភូមិមុខឈ្នាង (row 1 - 390)' : 'Mukh Chhnang Village (Row 1-390)'}</span>
+            </div>
+            <h4 className="text-xl font-black text-slate-900 pt-1">
+              ៣៩០ <span className="text-sm font-semibold text-slate-600">{language === 'km' ? 'នាក់ (៧៥ ខ្នងផ្ទះ)' : 'residents (75 HH)'}</span>
+            </h4>
+            <p className="text-xs text-amber-800">
+              {language === 'km' ? 'តំបន់សេវា៖ សាលាបឋមសិក្សា មុខឈ្នាង (ប.សមុខឈ្នាង)' : 'Catchment: Mukh Chhnang Primary School'}
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigateTab('school-report')}
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+          >
+            {language === 'km' ? 'មើលរបាយការណ៍' : 'View Report'}
+          </button>
+        </div>
+
+        {/* Village 2: Roak */}
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50/40 rounded-xl p-5 border border-blue-200 shadow-2xs flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded-md">
+              <MapPin className="w-3.5 h-3.5 text-blue-700" />
+              <span>{language === 'km' ? 'ភូមិរោគ (បន្ទាប់ពី row 390)' : 'Roak Village (After Row 390)'}</span>
+            </div>
+            <h4 className="text-xl font-black text-slate-900 pt-1">
+              ១,៦៧២ <span className="text-sm font-semibold text-slate-600">{language === 'km' ? 'នាក់ (៥៨ ខ្នងផ្ទះ)' : 'residents (58 HH)'}</span>
+            </h4>
+            <p className="text-xs text-blue-800">
+              {language === 'km' ? 'តំបន់សេវា៖ សាលាបឋមសិក្សា រោគ (ប.សរោគ)' : 'Catchment: Rouk Primary School'}
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigateTab('school-report')}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+          >
+            {language === 'km' ? 'មើលរបាយការណ៍' : 'View Report'}
+          </button>
+        </div>
+      </div>
+
+      {/* Target Mobilization / Enrollment Campaign Spotlight */}
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 rounded-2xl p-5 sm:p-6 text-white border border-emerald-700/50 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="space-y-1.5 max-w-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+              <Baby className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'គោលបំណង៖ ប្រមូលសិស្សចូលរៀនឱ្យបានត្រឹមត្រូវ ១០០%' : 'Goal: 100% Student Mobilization'}</span>
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-400 text-slate-950">
+              {language === 'km' ? '២ ក្រុមគោលដៅ' : '2 Target Groups'}
+            </span>
+          </div>
+
+          <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white pt-0.5">
+            {language === 'km' ? 'បញ្ជីកុមារត្រូវប្រមូលចូលរៀន ឆ្នាំ២០២៦ - ២០២៧' : 'Student Mobilization & Intake Lists (2026-2027)'}
+          </h3>
+
+          <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
+            {language === 'km'
+              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ)៖ ១១២ នាក់ (សម្រាប់ថ្នាក់មត្តេយ្យសិក្សា) • ក្រុម២ (អាយុ ៧០-៨០ខែ)៖ ៤១ នាក់ (កុមារគ្រប់អាយុត្រូវចូលរៀនថ្នាក់ទី១ បឋមសិក្សា) ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
+              : '• Group 1 (Age 3-5 yrs): 112 children (Pre-school) • Group 2 (Age 70-80 mos): 41 children (Official Grade 1 Primary Entry) across both villages.'}
+          </p>
+        </div>
+
+        <button
+          onClick={() => onNavigateTab('enrollment')}
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95 whitespace-nowrap self-start md:self-auto"
+        >
+          <Baby className="w-4 h-4 text-slate-950" />
+          <span>{language === 'km' ? 'ពិនិត្យបញ្ជីឈ្មោះ និងគ្រប់គ្រងការចុះឈ្មោះ' : 'Open Mobilization Lists'}</span>
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Second Row: Gender Split & Age Cohorts */}
