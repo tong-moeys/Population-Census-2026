@@ -54,8 +54,9 @@ export function getEnrollmentChildren(
   // Map household to easily lookup parents
   const householdMap = new Map<string, Household>();
   for (const h of households) {
-    const key = `${h.village || 'រោគ'}_${h.id}`;
+    const key = `${h.village || 'រោគ'}_${h.householdCode || h.id}`;
     householdMap.set(key, h);
+    householdMap.set(String(h.householdCode || h.id), h);
   }
 
   const allChildren: EnrollmentChild[] = [];
@@ -70,14 +71,14 @@ export function getEnrollmentChildren(
     // Age in years 3, 4, 5 OR months 36 to 71
     const isGroup1 = (years >= 3 && years <= 5) || (months >= 36 && months <= 71);
 
-    // Group 2: Children aged 70-80 months (official Grade 1 Primary school enrollment window)
-    const isGroup2 = months >= 70 && months <= 80;
+    // Group 2: Children aged 70-82 months (official Grade 1 Primary school enrollment window)
+    const isGroup2 = months >= 70 && months <= 82;
 
     if (!isGroup1 && !isGroup2) continue;
 
     // Find parent / guardian in the same household
-    const hKey = `${citizen.village || 'រោគ'}_${citizen.householdId}`;
-    const household = householdMap.get(hKey);
+    const hKey = `${citizen.village || 'រោគ'}_${citizen.householdCode || citizen.householdId}`;
+    const household = householdMap.get(hKey) || householdMap.get(String(citizen.householdCode || citizen.householdId));
 
     let parentName = '';
     let parentRelationship = '';

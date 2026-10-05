@@ -79,10 +79,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
                   {t.appTitle}
                 </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                  {language === 'km' ? 'ប.សរោគ' : 'Rouk Primary'}
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-300">
                   {language === 'km' ? 'ភូមិមុខឈ្នាង' : 'Mukh Chhnang'}
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
                   {language === 'km' ? 'ភូមិរោគ' : 'Roak Village'}
                 </span>
                 {isFirebaseConnected && (
@@ -93,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
-                <span>{language === 'km' ? 'តំបន់សេវា ប.សមុខឈ្នាង និង ប.សរោគ' : 'Mukh Chhnang & Rouk Primary Catchment'}</span>
+                <span>{language === 'km' ? 'សាលាបឋមសិក្សារោគ (ភូមិចំណុះ៖ ភូមិរោគ & ភូមិមុខឈ្នាង)' : 'Rouk Primary Catchment (Feeder: Roak & Mukh Chhnang)'}</span>
                 <span className="hidden sm:inline text-slate-300">•</span>
                 <span className="font-semibold text-slate-700">
                   {totalRecords.toLocaleString()} {t.recordsFound}
@@ -244,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* Student Enrollment Lists Tab (Group 1: 3-5 yrs, Group 2: 70-80 mos) */}
+          {/* Student Enrollment Lists Tab (Group 1: 3-5 yrs, Group 2: 70-82 mos) */}
           <button
             onClick={() => onTabChange('enrollment')}
             className={`flex items-center gap-2 px-3.5 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${

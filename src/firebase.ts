@@ -140,21 +140,28 @@ export async function signOutUser(): Promise<void> {
 // Sync single citizen to Firestore
 export async function syncCitizenToFirestore(citizen: Citizen): Promise<void> {
   const path = `citizens/${citizen.id}`;
-  const village = citizen.village?.trim() ? citizen.village.trim() : (Number(citizen.id) <= 390 ? 'មុខឈ្នាង' : 'រោគ');
+  const hhStr = String(citizen.householdCode || citizen.householdId || '1');
+  const village = citizen.village?.trim() ? citizen.village.trim() : (hhStr.includes('M') ? 'មុខឈ្នាង' : 'រោគ');
   const school = citizen.school || 'ប.សរោគ';
   try {
+    const validStatus = (citizen.enrollmentStatus === 'enrolled' || citizen.enrollmentStatus === 'contacted' || citizen.enrollmentStatus === 'moved') 
+      ? citizen.enrollmentStatus 
+      : 'not_enrolled';
+
     const citizenDoc = {
       id: Number(citizen.id),
-      originalId: String(citizen.originalId || citizen.id),
-      name: citizen.name,
-      gender: citizen.gender,
-      dob: citizen.dob || '',
-      age: Number(citizen.age),
-      relationship: citizen.relationship || 'កូន',
-      occupation: citizen.occupation || 'កសិករ',
-      householdId: Number(citizen.householdId),
-      school,
-      village
+      originalId: String(citizen.originalId || citizen.id).slice(0, 100),
+      name: String(citizen.name || `ពលរដ្ឋ #${citizen.id}`).trim().slice(0, 150),
+      gender: String(citizen.gender || 'មិនស្គាល់').trim(),
+      dob: String(citizen.dob || '').trim().slice(0, 50),
+      age: Math.max(0, Math.min(130, Number(citizen.age) || 0)),
+      relationship: String(citizen.relationship || 'កូន').trim().slice(0, 100),
+      occupation: String(citizen.occupation || 'កសិករ').trim().slice(0, 100),
+      householdId: hhStr.slice(0, 50),
+      householdCode: hhStr.slice(0, 50),
+      school: school.slice(0, 100),
+      village: village.slice(0, 100),
+      enrollmentStatus: validStatus
     };
     await setDoc(doc(db, 'citizens', String(citizen.id)), citizenDoc, { merge: true });
   } catch (error) {
@@ -184,20 +191,27 @@ export async function batchSyncCitizens(citizens: Citizen[], onProgress?: (perce
 
     for (const c of chunk) {
       const ref = doc(db, 'citizens', String(c.id));
-      const village = c.village?.trim() ? c.village.trim() : (Number(c.id) <= 390 ? 'មុខឈ្នាង' : 'រោគ');
+      const hhStr = String(c.householdCode || c.householdId || '1');
+      const village = c.village?.trim() ? c.village.trim() : (hhStr.includes('M') ? 'មុខឈ្នាង' : 'រោគ');
       const school = c.school || 'ប.សរោគ';
+      const validStatus = (c.enrollmentStatus === 'enrolled' || c.enrollmentStatus === 'contacted' || c.enrollmentStatus === 'moved') 
+        ? c.enrollmentStatus 
+        : 'not_enrolled';
+
       batch.set(ref, {
         id: Number(c.id),
-        originalId: String(c.originalId || c.id),
-        name: c.name,
-        gender: c.gender,
-        dob: c.dob || '',
-        age: Number(c.age),
-        relationship: c.relationship || 'កូន',
-        occupation: c.occupation || 'កសិករ',
-        householdId: Number(c.householdId),
-        school,
-        village
+        originalId: String(c.originalId || c.id).slice(0, 100),
+        name: String(c.name || `ពលរដ្ឋ #${c.id}`).trim().slice(0, 150),
+        gender: String(c.gender || 'មិនស្គាល់').trim(),
+        dob: String(c.dob || '').trim().slice(0, 50),
+        age: Math.max(0, Math.min(130, Number(c.age) || 0)),
+        relationship: String(c.relationship || 'កូន').trim().slice(0, 100),
+        occupation: String(c.occupation || 'កសិករ').trim().slice(0, 100),
+        householdId: hhStr.slice(0, 50),
+        householdCode: hhStr.slice(0, 50),
+        school: school.slice(0, 100),
+        village: village.slice(0, 100),
+        enrollmentStatus: validStatus
       }, { merge: true });
     }
 
@@ -221,7 +235,8 @@ export async function fetchCitizensFromFirestore(): Promise<Citizen[]> {
     snapshot.forEach(docSnap => {
       const d = docSnap.data() as Citizen;
       const citizenId = Number(d.id);
-      const village = d.village?.trim() ? d.village.trim() : (citizenId <= 390 ? 'មុខឈ្នាង' : 'រោគ');
+      const hhStr = String(d.householdCode || d.householdId || '1');
+      const village = d.village?.trim() ? d.village.trim() : (hhStr.includes('M') ? 'មុខឈ្នាង' : 'រោគ');
       const school = d.school || 'ប.សរោគ';
       list.push({
         id: citizenId,
@@ -232,9 +247,11 @@ export async function fetchCitizensFromFirestore(): Promise<Citizen[]> {
         age: Number(d.age),
         relationship: d.relationship,
         occupation: d.occupation,
-        householdId: Number(d.householdId),
+        householdId: hhStr,
+        householdCode: hhStr,
         school,
-        village
+        village,
+        enrollmentStatus: d.enrollmentStatus || 'not_enrolled'
       });
     });
     return list;

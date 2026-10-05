@@ -58,8 +58,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </h2>
           <p className="mt-2 text-blue-100 text-sm sm:text-base leading-relaxed">
             {language === 'km' 
-              ? 'ទិន្នន័យប្រជាសាស្ត្រថ្នាក់មូលដ្ឋាន គ្របដណ្តប់ប្រជាពលរដ្ឋសរុប ' + stats.totalPopulation.toLocaleString() + ' នាក់ ក្នុង ' + stats.totalHouseholds + ' គ្រួសារ (ភូមិមុខឈ្នាង row 1-390: ៣៩០ នាក់ និង ភូមិរោគ: ១,៦៧២ នាក់)។' 
-              : 'Official local census records covering ' + stats.totalPopulation.toLocaleString() + ' registered residents across ' + stats.totalHouseholds + ' households (Mukh Chhnang & Roak Villages).'}
+              ? `ទិន្នន័យប្រជាសាស្ត្រថ្នាក់មូលដ្ឋាន គ្របដណ្តប់ប្រជាពលរដ្ឋសរុប ${stats.totalPopulation.toLocaleString()} នាក់ ក្នុង ${stats.totalHouseholds.toLocaleString()} គ្រួសារ (ចំណុះសាលាបឋមសិក្សារោគ៖ ភូមិមុខឈ្នាង និង ភូមិរោគ)។` 
+              : `Official census records covering ${stats.totalPopulation.toLocaleString()} registered residents across ${stats.totalHouseholds.toLocaleString()} households (Rouk Primary School: Mukh Chhnang & Roak Feeder Villages).`}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -266,8 +266,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
             {language === 'km'
-              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ)៖ ១១២ នាក់ (សម្រាប់ថ្នាក់មត្តេយ្យសិក្សា) • ក្រុម២ (អាយុ ៧០-៨០ខែ)៖ ៤១ នាក់ (កុមារគ្រប់អាយុត្រូវចូលរៀនថ្នាក់ទី១ បឋមសិក្សា) ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
-              : '• Group 1 (Age 3-5 yrs): 112 children (Pre-school) • Group 2 (Age 70-80 mos): 41 children (Official Grade 1 Primary Entry) across both villages.'}
+              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ)៖ ១១២ នាក់ (សម្រាប់ថ្នាក់មត្តេយ្យសិក្សា) • ក្រុម២ (អាយុ ៧០-៨២ខែ)៖ កុមារគ្រប់អាយុត្រូវចូលរៀនថ្នាក់ទី១ បឋមសិក្សា ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
+              : '• Group 1 (Age 3-5 yrs): 112 children (Pre-school) • Group 2 (Age 70-82 mos): Official Grade 1 Primary Entry across both villages.'}
           </p>
         </div>
 

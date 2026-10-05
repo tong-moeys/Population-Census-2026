@@ -7,14 +7,16 @@ export interface Citizen {
   age: number;
   relationship: string;
   occupation: string;
-  householdId: number;
+  householdId: number | string;
+  householdCode?: string;
   school?: string;
   village?: string;
   enrollmentStatus?: 'not_enrolled' | 'enrolled' | 'contacted' | 'moved';
 }
 
 export interface Household {
-  id: number;
+  id: number | string;
+  householdCode?: string;
   headName: string;
   village?: string;
   membersCount: number;

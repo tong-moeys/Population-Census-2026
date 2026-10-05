@@ -157,7 +157,9 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         const vB = b.village?.trim() || 'រោគ';
         comparison = vA.localeCompare(vB, 'km');
       } else if (sortField === 'householdId') {
-        comparison = Number(a.householdId) - Number(b.householdId);
+        const hA = String(a.householdCode || a.householdId);
+        const hB = String(b.householdCode || b.householdId);
+        comparison = hA.localeCompare(hB, undefined, { numeric: true, sensitivity: 'base' });
       } else if (sortField === 'dob') {
         comparison = a.dob.localeCompare(b.dob);
       }

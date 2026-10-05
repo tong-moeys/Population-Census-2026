@@ -25,6 +25,8 @@ import {
 import { Citizen, Household, Language, EnrollmentChild, EnrollmentStatus } from '../types/census';
 import { getEnrollmentChildren } from '../utils/enrollmentUtils';
 import { translations, translateGender } from '../utils/translations';
+import { OfficialSignatureSection } from './OfficialSignatureSection';
+import { OfficialReportHeader } from './OfficialReportHeader';
 
 interface EnrollmentCampaignViewProps {
   citizens: Citizen[];
@@ -43,14 +45,15 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 }) => {
   const t = translations[language];
 
-  // Tab: 'all' | 'group1' (3-5 years) | 'group2' (70-80 months)
-  const [activeTab, setActiveTab] = useState<'all' | 'group1' | 'group2'>('all');
+  // Tab: 'all' | 'group1' (3-5 years) | 'group2' (70-82 months)
+  const [activeTab, setActiveTab] = useState<'all' | 'group1' | 'group2'>('group2');
   
-  // Filters
+  // Filters (Default to 'not_enrolled' so missing students from the roster are shown immediately)
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState<'all' | string>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | EnrollmentStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | EnrollmentStatus>('not_enrolled');
+  const [highlightPending, setHighlightPending] = useState(true);
   const [sortField, setSortField] = useState<'months' | 'name' | 'village' | 'household'>('months');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -89,7 +92,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
         const query = searchTerm.toLowerCase().trim();
         const matchesName = child.citizen.name.toLowerCase().includes(query);
         const matchesParent = (child.parentName || '').toLowerCase().includes(query);
-        const matchesHId = String(child.citizen.householdId).includes(query);
+        const matchesHId = String(child.citizen.householdCode || child.citizen.householdId).toLowerCase().includes(query);
         const matchesDob = child.citizen.dob.toLowerCase().includes(query);
         const matchesVillage = (child.citizen.village || '').toLowerCase().includes(query);
         if (!matchesName && !matchesParent && !matchesHId && !matchesDob && !matchesVillage) {
@@ -108,9 +111,11 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
           : b.citizen.name.localeCompare(a.citizen.name);
       }
       if (sortField === 'household') {
+        const hA = String(a.citizen.householdCode || a.citizen.householdId);
+        const hB = String(b.citizen.householdCode || b.citizen.householdId);
         return sortOrder === 'asc' 
-          ? a.citizen.householdId - b.citizen.householdId 
-          : b.citizen.householdId - a.citizen.householdId;
+          ? hA.localeCompare(hB, undefined, { numeric: true, sensitivity: 'base' })
+          : hB.localeCompare(hA, undefined, { numeric: true, sensitivity: 'base' });
       }
       if (sortField === 'village') {
         const vA = a.citizen.village || 'រោគ';
@@ -127,6 +132,18 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
     } else {
       setSortField(field);
       setSortOrder('asc');
+    }
+  };
+
+  // Pending children in current filtered view
+  const pendingInFiltered = useMemo(() => {
+    return filteredChildren.filter(c => c.enrollmentStatus === 'not_enrolled' || !c.enrollmentStatus);
+  }, [filteredChildren]);
+
+  // Batch action: Mark all pending in filtered view as contacted
+  const handleBatchMarkContacted = () => {
+    for (const child of pendingInFiltered) {
+      onUpdateCitizenStatus(child.citizen.id, 'contacted');
     }
   };
 
@@ -166,7 +183,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
       `"${c.citizen.dob}"`,
       c.ageInMonths,
       c.ageInYears,
-      `"${c.group === 'group1' ? 'ក្រុម១ (៣-៥ឆ្នាំ)' : c.group === 'group2' ? 'ក្រុម២ (៧០-៨០ខែ)' : 'ទាំងពីរ'}"`,
+      `"${c.group === 'group1' ? 'ក្រុម១ (៣-៥ឆ្នាំ)' : c.group === 'group2' ? 'ក្រុម២ (៧០-៨២ខែ)' : 'ទាំងពីរ'}"`,
       `"${c.citizen.village || 'រោគ'}"`,
       c.citizen.householdId,
       `"${c.parentName || ''}"`,
@@ -190,25 +207,16 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Official MoEYS Print-only Header */}
-      <div className="hidden print:block text-center space-y-1 mb-6 border-b pb-4">
-        <h3 className="text-base font-bold">ព្រះរាជាណាចក្រកម្ពុជា</h3>
-        <h4 className="text-sm font-semibold tracking-widest">ជាតិ សាសនា ព្រះមហាក្សត្រ</h4>
-        <div className="pt-2 text-left">
-          <p className="text-xs font-bold">ក្រសួងអប់រំ យុវជន និងកីឡា</p>
-          <p className="text-xs">កម្រងសាលាបឋមសិក្សា រោគ • ភូមិមុខឈ្នាង និង ភូមិរោគ</p>
-        </div>
-        <h2 className="text-base font-bold text-slate-900 pt-1">
-          {activeTab === 'group1' 
-            ? 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី១៖ អាយុ ៣ ដល់ ៥ ឆ្នាំ (មត្តេយ្យសិក្សា)'
-            : activeTab === 'group2'
-              ? 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី២៖ អាយុ ៧០ ដល់ ៨០ ខែ (ចូលរៀនថ្នាក់ទី១ បឋមសិក្សា)'
-              : 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី១ (៣-៥ឆ្នាំ) និង ក្រុមទី២ (៧០-៨០ខែ)'}
-        </h2>
-        <p className="text-xs text-slate-600">
-          គោលបំណង៖ ប្រមូលសិស្សចូលរៀនឱ្យបានត្រឹមត្រូវ ១០០% សម្រាប់ឆ្នាំសិក្សា ២០២៦ - ២០២៧
-        </p>
-      </div>
+      {/* Official MoEYS Administrative Header */}
+      <OfficialReportHeader
+        title={activeTab === 'group1' 
+          ? 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី១៖ អាយុ ៣ ដល់ ៥ ឆ្នាំ (មត្តេយ្យសិក្សា)'
+          : activeTab === 'group2'
+            ? 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី២៖ អាយុ ៧០ ដល់ ៨២ ខែ (ចូលរៀនថ្នាក់ទី១ បឋមសិក្សា)'
+            : 'បញ្ជីរាយនាមកុមារត្រូវប្រមូលចូលរៀន ក្រុមទី១ (៣-៥ឆ្នាំ) និង ក្រុមទី២ (៧០-៨២ខែ)'}
+        subtitle="គោលបំណង៖ ប្រមូលសិស្សចូលរៀនឱ្យបានត្រឹមត្រូវ ១០០% សម្រាប់កុមារក្នុងតំបន់សេវា"
+        academicYear="ឆ្នាំសិក្សា ២០២៦ - ២០២៧"
+      />
 
       {/* Top Banner Notice */}
       <div className="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-emerald-700/40 relative overflow-hidden no-print">
@@ -227,8 +235,8 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 
             <p className="text-sm text-emerald-100/90 max-w-2xl leading-relaxed">
               {language === 'km' 
-                ? 'គោលបំណង ៖ ប្រមូលសិស្សចូលរៀនឱ្យបានត្រឹមត្រូវ ១០០% ស្របតាមគោលនយោបាយក្រសួងអប់រំ យុវជន និងកីឡា ដោយបែងចែកជា ក្រុម១ (អាយុ ៣-៥ឆ្នាំ មត្តេយ្យ) និង ក្រុម២ (អាយុ ៧០-៨០ខែ ថ្នាក់ទី១) ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
-                : 'Objective: 100% proper school enrollment categorized into Group 1 (3-5 years for Pre-school) and Group 2 (70-80 months for Grade 1 Primary).'}
+                ? 'គោលបំណង ៖ ប្រមូលសិស្សចូលរៀនឱ្យបានត្រឹមត្រូវ ១០០% ស្របតាមគោលនយោបាយក្រសួងអប់រំ យុវជន និងកីឡា ដោយបែងចែកជា ក្រុម១ (អាយុ ៣-៥ឆ្នាំ មត្តេយ្យ) និង ក្រុម២ (អាយុ ៧០-៨២ខែ ថ្នាក់ទី១) ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
+                : 'Objective: 100% proper school enrollment categorized into Group 1 (3-5 years for Pre-school) and Group 2 (70-82 months for Grade 1 Primary).'}
             </p>
           </div>
 
@@ -287,7 +295,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
           >
             <div className="flex items-center gap-1.5 text-xs opacity-90">
               <GraduationCap className="w-4 h-4" />
-              <span>{language === 'km' ? 'ក្រុម២ (៧០-៨០ខែ)' : 'Group 2 (70-80 Mos)'}</span>
+              <span>{language === 'km' ? 'ក្រុម២ (៧០-៨២ខែ)' : 'Group 2 (70-82 Mos)'}</span>
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-black">{stats.group2Total}</span>
@@ -324,20 +332,33 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
             </div>
           </div>
 
-          {/* Enrollment Progress */}
-          <div className="bg-white/10 rounded-xl p-3 border border-white/10">
-            <div className="flex items-center gap-1.5 text-xs text-emerald-200">
-              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              <span>{language === 'km' ? 'បានចុះឈ្មោះរួច' : 'Enrolled'}</span>
-            </div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-xl font-black text-white">{stats.totalEnrolled}</span>
-              <span className="text-xs text-emerald-200">
-                / {stats.totalEligible} ({stats.totalEligible > 0 ? Math.round((stats.totalEnrolled / stats.totalEligible) * 100) : 0}%)
+          {/* Enrollment Progress & Pending Card */}
+          <div 
+            onClick={() => setStatusFilter(prev => prev === 'not_enrolled' ? 'all' : 'not_enrolled')}
+            className={`rounded-xl p-3 border cursor-pointer transition ${
+              statusFilter === 'not_enrolled'
+                ? 'bg-amber-400 text-slate-900 border-amber-300 font-bold'
+                : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
+            }`}
+            title={language === 'km' ? 'ចុចដើម្បីបង្ហាញតែកុមារមិនទាន់ចុះឈ្មោះ' : 'Click to filter pending unenrolled children'}
+          >
+            <div className="flex items-center justify-between text-xs opacity-90">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-amber-300" />
+                <span>{language === 'km' ? 'មិនទាន់ចុះឈ្មោះ' : 'Not Enrolled'}</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.2 bg-amber-500/30 text-amber-100 rounded">
+                {language === 'km' ? 'ចុចចម្រាញ់' : 'Filter'}
               </span>
             </div>
-            <div className="text-[10px] mt-0.5 text-amber-200 font-medium">
-              {stats.totalPending} {language === 'km' ? 'នាក់ត្រូវការចុះជួប' : 'pending visits'}
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-black">{stats.totalPending}</span>
+              <span className="text-xs opacity-80">
+                / {stats.totalEligible}
+              </span>
+            </div>
+            <div className="text-[10px] mt-0.5 opacity-90 font-medium">
+              {language === 'km' ? `បានចុះឈ្មោះ៖ ${stats.totalEnrolled} នាក់ (${stats.totalEligible > 0 ? Math.round((stats.totalEnrolled / stats.totalEligible) * 100) : 0}%)` : `Enrolled: ${stats.totalEnrolled}`}
             </div>
           </div>
         </div>
@@ -345,7 +366,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 
       {/* Tabs and Filter Control Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4 no-print">
-        {/* Main Tab Switcher */}
+        {/* Main Tab Switcher & Action Tools */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -382,18 +403,76 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                 }`}
               >
                 <GraduationCap className="w-3.5 h-3.5" />
-                <span>{language === 'km' ? `ក្រុម២៖ ៧០-៨០ខែ (${stats.group2Total})` : `Group 2: 70-80 mos (${stats.group2Total})`}</span>
+                <span>{language === 'km' ? `ក្រុម២៖ ៧០-៨២ខែ (${stats.group2Total})` : `Group 2: 70-82 mos (${stats.group2Total})`}</span>
               </button>
             </div>
           </div>
 
-          <div className="text-xs text-slate-500 flex items-center gap-2">
-            <Info className="w-4 h-4 text-emerald-600" />
-            <span>
-              {activeTab === 'group2' 
-                ? (language === 'km' ? 'កុមារអាយុ ៧០-៨០ ខែ ត្រូវចុះឈ្មោះចូលរៀនថ្នាក់ទី១ បឋមសិក្សា' : 'Children 70-80 months must enter Grade 1 Primary')
-                : (language === 'km' ? 'កុមារអាយុ ៣-៥ ឆ្នាំ ត្រូវប្រមូលចូលរៀនថ្នាក់មត្តេយ្យសិក្សា' : 'Children 3-5 years must enter Pre-school')}
-            </span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Roster Comparison Pills for Grade 1 (70-82 months) */}
+            <button
+              onClick={() => {
+                setActiveTab('group2');
+                setStatusFilter('not_enrolled');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
+                activeTab === 'group2' && statusFilter === 'not_enrolled'
+                  ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                  : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border-rose-200'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>
+                {language === 'km'
+                  ? `មិនមានក្នុងតារាងចុះឈ្មោះ (${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់)`
+                  : `Missing from Roster (${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length})`}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('group2');
+                setStatusFilter('enrolled');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
+                activeTab === 'group2' && statusFilter === 'enrolled'
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                  : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border-emerald-200'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>
+                {language === 'km'
+                  ? `មានក្នុងតារាងរួច (${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length} នាក់)`
+                  : `In Roster (${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length})`}
+              </span>
+            </button>
+
+            {/* Highlight Pending Switch */}
+            <button
+              onClick={() => setHighlightPending(!highlightPending)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
+                highlightPending 
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs' 
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+              }`}
+              title={language === 'km' ? 'បើក/បិទការរំលេចកុមារមិនទាន់ចុះឈ្មោះ' : 'Toggle highlight pending children'}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'រំលេចកុមារមិនទាន់ចុះឈ្មោះ' : 'Highlight Pending'}</span>
+            </button>
+
+            {/* Batch Contact Action Button */}
+            {pendingInFiltered.length > 0 && (
+              <button
+                onClick={handleBatchMarkContacted}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 flex items-center gap-1.5 transition shadow-2xs"
+                title={language === 'km' ? 'ប្តូរកុមារមិនទាន់ចុះឈ្មោះក្នុងបញ្ជីនេះទៅជា «បានចុះជួប»' : 'Mark all pending in view as contacted'}
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-amber-700" />
+                <span>{language === 'km' ? `ចុះជួបទាំងអស់ (${pendingInFiltered.length})` : `Mark All Contacted (${pendingInFiltered.length})`}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -419,8 +498,8 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none"
             >
               <option value="all">{t.filterVillage}</option>
-              <option value="មុខឈ្នាង">{language === 'km' ? 'ភូមិមុខឈ្នាង (ប.សមុខឈ្នាង)' : 'Mukh Chhnang Village'}</option>
-              <option value="រោគ">{language === 'km' ? 'ភូមិរោគ (ប.សរោគ)' : 'Roak Village'}</option>
+              <option value="មុខឈ្នាង">{language === 'km' ? 'ភូមិមុខឈ្នាង (ចំណុះ ប.សរោគ)' : 'Mukh Chhnang (Rouk Feeder)'}</option>
+              <option value="រោគ">{language === 'km' ? 'ភូមិរោគ (ចំណុះ ប.សរោគ)' : 'Roak Village (Rouk Feeder)'}</option>
             </select>
           </div>
 
@@ -455,12 +534,20 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 
         {/* Counter and Results */}
         <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
-          <span>
-            {language === 'km' ? 'បង្ហាញកុមារសរុប' : 'Showing children'}:{' '}
-            <strong className="text-slate-900">{filteredChildren.length}</strong> / {baseList.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span>
+              {language === 'km' ? 'បង្ហាញកុមារសរុប' : 'Showing children'}:{' '}
+              <strong className="text-slate-900">{filteredChildren.length}</strong> / {baseList.length}
+            </span>
+            {pendingInFiltered.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <Clock className="w-3 h-3 text-amber-700" />
+                <span>{language === 'km' ? `មិនទាន់ចុះឈ្មោះ៖ ${pendingInFiltered.length} នាក់` : `Pending: ${pendingInFiltered.length}`}</span>
+              </span>
+            )}
+          </div>
           <span className="text-[11px] text-slate-400">
-            {language === 'km' ? '* ចុចលើប៊ូតុងស្ថានភាពដើម្បីផ្លាស់ប្តូរ (មិនទាន់ចុះឈ្មោះ ➜ បានចុះឈ្មោះ ➜ បានចុះជួប)' : '* Click status badge to cycle enrollment status'}
+            {language === 'km' ? '* ចុចប៊ូតុង «ចុះជួប» ដើម្បីកត់ត្រាការតាមដាន ឬចុចស្លាកស្ថានភាពដើម្បីប្តូរ' : '* Click "Mark Contacted" button or cycle status badge'}
           </span>
         </div>
       </div>
@@ -532,12 +619,16 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
               ) : (
                 filteredChildren.map((child, index) => {
                   const isMukhChhnang = child.citizen.village === 'មុខឈ្នាង';
-                  const isGroup2 = child.ageInMonths >= 70 && child.ageInMonths <= 80;
+                  const isGroup2 = child.ageInMonths >= 70 && child.ageInMonths <= 82;
+                  const isPending = child.enrollmentStatus === 'not_enrolled' || !child.enrollmentStatus;
+                  const rowClass = (isPending && highlightPending)
+                    ? 'bg-amber-50/85 hover:bg-amber-100/90 border-l-4 border-l-amber-500 ring-1 ring-amber-300/40 font-medium transition'
+                    : 'hover:bg-blue-50/40 transition';
 
                   return (
                     <tr 
                       key={child.citizen.id}
-                      className="hover:bg-blue-50/40 transition group"
+                      className={rowClass}
                     >
                       <td className="py-3 px-3 text-center text-slate-400 font-mono text-xs">
                         {index + 1}
@@ -547,6 +638,12 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                       <td className="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span>{child.citizen.name}</span>
+                          {isPending && highlightPending && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200/90 text-amber-900 border border-amber-400/60 animate-pulse shadow-2xs">
+                              <span>⚠️</span>
+                              <span>{language === 'km' ? 'មិនទាន់ចុះឈ្មោះ' : 'Pending'}</span>
+                            </span>
+                          )}
                           {child.citizen.originalId && String(child.citizen.originalId) !== String(child.citizen.id) && (
                             <span className="text-[10px] text-slate-400 font-normal">
                               (#{child.citizen.originalId})
@@ -594,7 +691,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                         {isGroup2 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
                             <GraduationCap className="w-3 h-3 text-emerald-700" />
-                            <span>ក្រុម២ (៧០-៨០ខែ)</span>
+                            <span>ក្រុម២ (៧០-៨២ខែ)</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
@@ -621,9 +718,9 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
 
                       {/* Household # */}
                       <td className="py-3 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 font-mono text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                          <Building2 className="w-3 h-3 text-indigo-500" />
-                          #{child.citizen.householdId}
+                        <span className="inline-flex items-center gap-1 font-mono text-xs text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-bold">
+                          <Building2 className="w-3 h-3 text-indigo-600" />
+                          #{child.citizen.householdCode || child.citizen.householdId}
                         </span>
                       </td>
 
@@ -640,55 +737,89 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                         </span>
                       </td>
 
-                      {/* Enrollment Status (Click to cycle) */}
+                      {/* Enrollment Status & Direct Contacted Action */}
                       <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => cycleStatus(child.citizen.id, child.enrollmentStatus)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer ${
-                            child.enrollmentStatus === 'enrolled'
-                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                              : child.enrollmentStatus === 'contacted'
-                                ? 'bg-amber-500 text-white hover:bg-amber-600'
-                                : child.enrollmentStatus === 'moved'
-                                  ? 'bg-slate-500 text-white hover:bg-slate-600'
-                                  : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                          }`}
-                          title={language === 'km' ? 'ចុចដើម្បីប្តូរស្ថានភាព' : 'Click to cycle status'}
-                        >
-                          {child.enrollmentStatus === 'enrolled' ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          {isPending ? (
                             <>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{language === 'km' ? 'បានចុះឈ្មោះ' : 'Enrolled'}</span>
-                            </>
-                          ) : child.enrollmentStatus === 'contacted' ? (
-                            <>
-                              <PhoneCall className="w-3.5 h-3.5" />
-                              <span>{language === 'km' ? 'បានចុះជួប/តាមដាន' : 'Visited'}</span>
-                            </>
-                          ) : child.enrollmentStatus === 'moved' ? (
-                            <>
-                              <AlertCircle className="w-3.5 h-3.5" />
-                              <span>{language === 'km' ? 'ផ្លាស់ទីលំនៅ' : 'Moved'}</span>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateCitizenStatus(child.citizen.id, 'contacted')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white shadow-xs hover:shadow transition transform cursor-pointer whitespace-nowrap ring-2 ring-amber-400/40"
+                                title={language === 'km' ? 'ចុចទីនេះដើម្បីប្តូរទៅជា «បានចុះជួប/តាមដាន» ភ្លាមៗ' : 'Change status directly to Contacted'}
+                              >
+                                <PhoneCall className="w-3 h-3" />
+                                <span>{language === 'km' ? 'ចុះជួប' : 'Mark Contacted'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => cycleStatus(child.citizen.id, child.enrollmentStatus)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-red-100 text-red-800 border border-red-200 hover:bg-red-200 transition"
+                                title={language === 'km' ? 'ចុចដើម្បីប្តូរស្ថានភាព' : 'Click to cycle status'}
+                              >
+                                <Clock className="w-3 h-3 text-red-600" />
+                                <span>{language === 'km' ? 'មិនទាន់' : 'Pending'}</span>
+                              </button>
                             </>
                           ) : (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-red-500" />
-                              <span>{language === 'km' ? 'មិនទាន់ចុះឈ្មោះ' : 'Not Enrolled'}</span>
-                            </>
+                            <button
+                              type="button"
+                              onClick={() => cycleStatus(child.citizen.id, child.enrollmentStatus)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition shadow-2xs active:scale-95 cursor-pointer ${
+                                child.enrollmentStatus === 'enrolled'
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  : child.enrollmentStatus === 'contacted'
+                                    ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                    : 'bg-slate-500 text-white hover:bg-slate-600'
+                              }`}
+                              title={language === 'km' ? 'ចុចដើម្បីប្តូរស្ថានភាព' : 'Click to cycle status'}
+                            >
+                              {child.enrollmentStatus === 'enrolled' ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>{language === 'km' ? 'បានចុះឈ្មោះ' : 'Enrolled'}</span>
+                                </>
+                              ) : child.enrollmentStatus === 'contacted' ? (
+                                <>
+                                  <PhoneCall className="w-3.5 h-3.5" />
+                                  <span>{language === 'km' ? 'បានចុះជួប/តាមដាន' : 'Visited'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>{language === 'km' ? 'ផ្លាស់ទីលំនៅ' : 'Moved'}</span>
+                                </>
+                              )}
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </td>
 
                       {/* Actions */}
                       <td className="py-3 px-3 text-right no-print">
-                        <button
-                          onClick={() => onSelectCitizen(child.citizen)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title={t.details}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {isPending && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateCitizenStatus(child.citizen.id, 'contacted');
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition"
+                              title={language === 'km' ? 'ចុចកត់ត្រាបានចុះជួប' : 'Mark as Contacted'}
+                            >
+                              <PhoneCall className="w-3 h-3 text-amber-700" />
+                              <span className="hidden xl:inline">{language === 'km' ? 'ចុះជួប' : 'Contact'}</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onSelectCitizen(child.citizen)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            title={t.details}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -699,27 +830,12 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
         </div>
       </div>
 
-      {/* Official Signatures Block for Print */}
-      <div className="pt-6 border-t border-slate-200 mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-800">
-        <div className="space-y-1">
-          <p className="font-bold">បានឃើញ និងបញ្ជាក់</p>
-          <p className="font-semibold text-slate-600">មេឃុំ / ចៅសង្កាត់</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងត្រា)</p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-bold">បានឃើញ និងឯកភាព</p>
-          <p className="font-semibold text-slate-600">នាយកសាលាបឋមសិក្សា</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងត្រា)</p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-bold">ថ្ងៃទី........ ខែ........ ឆ្នាំ២០២៦</p>
-          <p className="font-semibold text-slate-600">គ្រូទទួលបន្ទុកចុះឈ្មោះ</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងឈ្មោះ)</p>
-        </div>
-      </div>
+      {/* Official Signatures Block with Khmer Lunar & Solar dates for Print & Review */}
+      <OfficialSignatureSection
+        language={language}
+        defaultLocation="រោគ"
+        reportType="enrollment"
+      />
     </div>
   );
 };

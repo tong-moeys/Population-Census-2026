@@ -159,7 +159,7 @@ export const App: React.FC = () => {
     const householdMap = new Map<string, Citizen[]>();
     for (const citizen of citizens) {
       const v = citizen.village || 'រោគ';
-      const hKey = `${v}_${citizen.householdId}`;
+      const hKey = `${v}_${citizen.householdCode || citizen.householdId}`;
       if (!householdMap.has(hKey)) {
         householdMap.set(hKey, []);
       }
@@ -172,7 +172,7 @@ export const App: React.FC = () => {
         || members.find(m => m.relationship === 'ម្តាយ') 
         || members[0];
 
-      const hId = members[0]?.householdId || 1;
+      const hId = members[0]?.householdCode || members[0]?.householdId || '1';
       const hVillage = members[0]?.village || 'រោគ';
 
       const malesCount = members.filter(m => m.gender === 'ប្រុស').length;
@@ -189,6 +189,7 @@ export const App: React.FC = () => {
 
       hList.push({
         id: hId,
+        householdCode: String(hId),
         headName: head?.name || `គ្រួសារ #${hId}`,
         village: hVillage,
         membersCount: members.length,
@@ -206,7 +207,7 @@ export const App: React.FC = () => {
       if (a.village !== b.village) {
         return a.village === 'មុខឈ្នាង' ? -1 : 1;
       }
-      return Number(a.id) - Number(b.id);
+      return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' });
     });
 
     const totalPopulation = citizens.length;
@@ -499,6 +500,9 @@ export const App: React.FC = () => {
           <SchoolReportView
             citizens={citizens}
             language={language}
+            user={user}
+            onSignIn={handleSignIn}
+            onSignOut={handleSignOut}
           />
         )}
 

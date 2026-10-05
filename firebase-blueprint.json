@@ -8,14 +8,16 @@
         "id": { "type": "number", "description": "Numeric identifier of citizen" },
         "originalId": { "type": "string", "maxLength": 100, "description": "Original ID in census" },
         "name": { "type": "string", "maxLength": 150, "description": "Citizen full name in Khmer or Latin" },
-        "gender": { "type": "string", "enum": ["ប្រុស", "ស្រី", "Male", "Female"], "description": "Gender" },
+        "gender": { "type": "string", "enum": ["ប្រុស", "ស្រី", "Male", "Female", "មិនស្គាល់"], "description": "Gender" },
         "dob": { "type": "string", "maxLength": 50, "description": "Date of birth" },
         "age": { "type": "number", "description": "Age in years" },
         "relationship": { "type": "string", "maxLength": 100, "description": "Relationship to head of household" },
         "occupation": { "type": "string", "maxLength": 100, "description": "Occupation / job status" },
-        "householdId": { "type": "number", "description": "Household unit identifier" },
+        "householdId": { "type": "string", "maxLength": 50, "description": "Household unit identifier code (e.g., 1M1, 1R1, or number)" },
+        "householdCode": { "type": "string", "maxLength": 50, "description": "Alphanumeric household code (e.g., 1M1, 1R1)" },
         "school": { "type": "string", "maxLength": 100, "description": "School catchment name (e.g., ប.សរោគ)" },
-        "village": { "type": "string", "maxLength": 100, "description": "Village name in catchment area (defaults to រោគ if empty)" }
+        "village": { "type": "string", "maxLength": 100, "description": "Village name in catchment area (defaults to រោគ if empty)" },
+        "enrollmentStatus": { "type": "string", "enum": ["not_enrolled", "enrolled", "contacted", "moved"], "description": "School mobilization and enrollment campaign status" }
       },
       "required": ["id", "name", "gender", "age", "relationship", "occupation", "householdId"]
     },

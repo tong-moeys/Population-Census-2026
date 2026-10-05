@@ -29,7 +29,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
   const [village, setVillage] = useState('រោគ');
   const [relationship, setRelationship] = useState('កូន');
   const [occupation, setOccupation] = useState('កសិករ');
-  const [householdId, setHouseholdId] = useState<number | ''>(1);
+  const [householdId, setHouseholdId] = useState<string | number>('1R1');
   const [originalId, setOriginalId] = useState('');
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       setVillage(citizenToEdit.village?.trim() || 'រោគ');
       setRelationship(citizenToEdit.relationship);
       setOccupation(citizenToEdit.occupation);
-      setHouseholdId(citizenToEdit.householdId);
+      setHouseholdId(citizenToEdit.householdCode || citizenToEdit.householdId);
       setOriginalId(String(citizenToEdit.originalId || ''));
     } else {
       setName('');
@@ -51,7 +51,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       setVillage('រោគ');
       setRelationship('កូន');
       setOccupation('កសិករ');
-      setHouseholdId(1);
+      setHouseholdId('1R1');
       setOriginalId('');
     }
   }, [citizenToEdit, isOpen]);
@@ -60,6 +60,7 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
+    const finalHh = String(householdId).trim() || '1R1';
     onSave({
       id: citizenToEdit?.id,
       name: name.trim(),
@@ -69,7 +70,8 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
       village: village.trim() || 'រោគ',
       relationship,
       occupation,
-      householdId: typeof householdId === 'number' ? householdId : parseInt(String(householdId), 10) || 1,
+      householdId: finalHh,
+      householdCode: finalHh,
       originalId: originalId.trim() || undefined as unknown as string
     });
     onClose();
@@ -209,12 +211,11 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
                 {t.householdId} *
               </label>
               <input
-                type="number"
-                min="1"
+                type="text"
                 required
                 value={householdId}
-                onChange={(e) => setHouseholdId(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="1"
+                onChange={(e) => setHouseholdId(e.target.value)}
+                placeholder="1M1 ឬ 1R1..."
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
               />
             </div>

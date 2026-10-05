@@ -11,24 +11,37 @@ import {
   MapPin, 
   Building2, 
   Layers, 
-  Table as TableIcon
+  Table as TableIcon,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  ShieldCheck
 } from 'lucide-react';
+import { User } from 'firebase/auth';
 import { Citizen, Language, SchoolCatchmentReportRow } from '../types/census';
 import { translations } from '../utils/translations';
+import { OfficialSignatureSection } from './OfficialSignatureSection';
+import { OfficialReportHeader } from './OfficialReportHeader';
 
 interface SchoolReportViewProps {
   citizens: Citizen[];
   language: Language;
   onFilterAgeAndSchool?: (minAge: number, maxAge: number) => void;
+  user?: User | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 }
 
 export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
   citizens,
-  language
+  language,
+  user,
+  onSignIn,
+  onSignOut
 }) => {
   const t = translations[language];
-  const [reportMode, setReportMode] = useState<'village' | 'school'>('village');
-  const [activeTableTab, setActiveTableTab] = useState<'master' | 'all' | 'table1' | 'table2'>('master');
+  const [reportMode, setReportMode] = useState<'village' | 'school'>('school');
+  const [activeTableTab, setActiveTableTab] = useState<'master' | 'all' | 'table1' | 'table2'>('all');
 
   // Helper to compute a report row for any list of citizens
   const computeReportRow = (list: Citizen[], name: string, isMainDataset = true): SchoolCatchmentReportRow => {
@@ -95,7 +108,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
       female: list.filter(c => c.gender === 'ស្រី').length
     };
 
-    const uniqueHouseholds = new Set(list.map(c => `${c.village || 'រោគ'}_${c.householdId}`)).size;
+    const uniqueHouseholds = new Set(list.map(c => `${c.village || 'រោគ'}_${c.householdCode || c.householdId}`)).size;
 
     return {
       schoolName: name,
@@ -111,41 +124,51 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
     };
   };
 
-  // 1. Data for ភូមិមុខឈ្នាង (Citizens 1 to 390)
+  // 1. Data for ភូមិមុខឈ្នាង (Feeder village of ប.សរោគ)
   const mukhChhnangCitizens = useMemo(() => {
     return citizens.filter(c => c.village === 'មុខឈ្នាង');
   }, [citizens]);
 
-  // 2. Data for ភូមិរោគ (Citizens from 391 onward)
+  // 2. Data for ភូមិរោគ (Feeder village of ប.សរោគ)
   const roakCitizens = useMemo(() => {
-    return citizens.filter(c => c.village !== 'មុខឈ្នាង');
+    return citizens.filter(c => c.village === 'រោគ' || c.village !== 'មុខឈ្នាង');
   }, [citizens]);
 
-  // Computed Report Rows
+  // Computed Report Rows for Feeder Villages
   const mukhChhnangVillageRow = useMemo(() => {
-    return computeReportRow(mukhChhnangCitizens, language === 'km' ? 'ភូមិមុខឈ្នាង' : 'Mukh Chhnang Village', true);
+    return computeReportRow(mukhChhnangCitizens, language === 'km' ? 'ភូមិមុខឈ្នាង (ចំណុះ ប.សរោគ)' : 'Mukh Chhnang Village (Rouk Feeder)', true);
   }, [mukhChhnangCitizens, language]);
 
   const roakVillageRow = useMemo(() => {
-    return computeReportRow(roakCitizens, language === 'km' ? 'ភូមិរោគ' : 'Roak Village', true);
+    return computeReportRow(roakCitizens, language === 'km' ? 'ភូមិរោគ (ចំណុះ ប.សរោគ)' : 'Roak Village (Rouk Feeder)', true);
   }, [roakCitizens, language]);
 
-  const mukhChhnangSchoolRow = useMemo(() => {
-    return computeReportRow(mukhChhnangCitizens, 'ប.សមុខឈ្នាង', true);
-  }, [mukhChhnangCitizens]);
-
+  // Primary School Rouk (ប.សរោគ): Feeder villages are BOTH ភូមិរោគ and ភូមិមុខឈ្នាង (All current surveyed citizens)
   const roakSchoolRow = useMemo(() => {
-    return computeReportRow(roakCitizens, 'ប.សរោគ', true);
-  }, [roakCitizens]);
-
-  const grandTotalRow = useMemo(() => {
-    return computeReportRow(citizens, language === 'km' ? 'សរុបរួម' : 'Grand Total', true);
+    return computeReportRow(
+      citizens, 
+      language === 'km' ? 'ប.សរោគ' : 'Rouk Primary School (Feeder: Roak & Mukh Chhnang)', 
+      true
+    );
   }, [citizens, language]);
 
-  // Other Cluster Schools for reference
+  // Other Cluster Primary Schools: Feeder villages designated, but census will be entered later once conducted
   const zeroCount = { total: 0, female: 0 };
   const speanSrengSchoolRow: SchoolCatchmentReportRow = {
-    schoolName: 'ប.សស្ពានស្រែង',
+    schoolName: language === 'km' ? 'ប.សស្ពានស្រែង' : 'Spean Sreng Primary (Pending Census)',
+    isMainDataset: false,
+    age0: zeroCount, age1: zeroCount, age2: zeroCount, age3: zeroCount, total0to3: zeroCount,
+    age4: zeroCount, age5: zeroCount, age6: zeroCount, total4to6: zeroCount,
+    age7: zeroCount, age8: zeroCount, age9: zeroCount, age10: zeroCount, age11: zeroCount, total7to11: zeroCount,
+    age12: zeroCount, age13: zeroCount, age14: zeroCount, total12to14: zeroCount,
+    age15: zeroCount, age16: zeroCount, age17: zeroCount, total15to17: zeroCount,
+    age18: zeroCount, age19to25: zeroCount, age26to45: zeroCount, age46plus: zeroCount, total18plus: zeroCount,
+    grandTotal: zeroCount,
+    householdCount: 0
+  };
+
+  const mukhChhnangSchoolRow: SchoolCatchmentReportRow = {
+    schoolName: language === 'km' ? 'ប.សមុខឈ្នាង' : 'Mukh Chhnang Primary (Pending Census)',
     isMainDataset: false,
     age0: zeroCount, age1: zeroCount, age2: zeroCount, age3: zeroCount, total0to3: zeroCount,
     age4: zeroCount, age5: zeroCount, age6: zeroCount, total4to6: zeroCount,
@@ -158,7 +181,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
   };
 
   const pongroKandalSchoolRow: SchoolCatchmentReportRow = {
-    schoolName: 'ប.សពង្រកណ្ដោល',
+    schoolName: language === 'km' ? 'ប.សពង្រកណ្ដោល' : 'Pongro Kandal Primary (Pending Census)',
     isMainDataset: false,
     age0: zeroCount, age1: zeroCount, age2: zeroCount, age3: zeroCount, total0to3: zeroCount,
     age4: zeroCount, age5: zeroCount, age6: zeroCount, total4to6: zeroCount,
@@ -170,6 +193,10 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
     householdCount: 0
   };
 
+  const grandTotalRow = useMemo(() => {
+    return computeReportRow(citizens, language === 'km' ? 'សរុបរួម' : 'Grand Total', true);
+  }, [citizens, language]);
+
   // Rows to display based on selected mode
   const currentRows: SchoolCatchmentReportRow[] = useMemo(() => {
     if (reportMode === 'village') {
@@ -177,7 +204,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
     } else {
       return [speanSrengSchoolRow, roakSchoolRow, mukhChhnangSchoolRow, pongroKandalSchoolRow];
     }
-  }, [reportMode, mukhChhnangVillageRow, roakVillageRow, mukhChhnangSchoolRow, roakSchoolRow]);
+  }, [reportMode, mukhChhnangVillageRow, roakVillageRow, speanSrengSchoolRow, roakSchoolRow, mukhChhnangSchoolRow, pongroKandalSchoolRow]);
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -224,19 +251,12 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Official MoEYS Print-only Header */}
-      <div className="hidden print:block text-center space-y-1 mb-6 border-b pb-4">
-        <h3 className="text-base font-bold">ព្រះរាជាណាចក្រកម្ពុជា</h3>
-        <h4 className="text-sm font-semibold tracking-widest">ជាតិ សាសនា ព្រះមហាក្សត្រ</h4>
-        <div className="pt-2 text-left">
-          <p className="text-xs font-bold">ក្រសួងអប់រំ យុវជន និងកីឡា</p>
-          <p className="text-xs">កម្រងសាលាបឋមសិក្សា រោគ • ភូមិមុខឈ្នាង និង ភូមិរោគ</p>
-        </div>
-        <h2 className="text-base font-bold text-slate-900 pt-1">
-          របាយការណ៍ស្ថិតិកុមារ និងប្រជាជនក្នុងតំបន់សេវា (តាមភូមិ និងសាលារៀន)
-        </h2>
-        <p className="text-xs text-slate-600">ឆ្នាំសិក្សា ២០២៥ - ២០២៦</p>
-      </div>
+      {/* Official MoEYS Administrative Header */}
+      <OfficialReportHeader
+        title="របាយការណ៍ស្ថិតិកុមារ និងប្រជាជនក្នុងតំបន់សេវា (តាមភូមិ និងសាលារៀន)"
+        subtitle="ភូមិមុខឈ្នាង និង ភូមិរោគ • សាលាបឋមសិក្សា រោគ"
+        academicYear="ឆ្នាំសិក្សា ២០២៦ - ២០២៧"
+      />
 
       {/* Top Banner Notice */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-blue-800/40 relative overflow-hidden no-print">
@@ -245,41 +265,101 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+                <School className="w-3.5 h-3.5 text-emerald-300" />
+                <span>{language === 'km' ? 'សាលាបឋមសិក្សារោគ (ប.សរោគ)' : 'Rouk Primary School'}</span>
+              </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>ភូមិមុខឈ្នាង (row 1-390: {mukhChhnangCitizens.length.toLocaleString()} នាក់)</span>
+                <MapPin className="w-3.5 h-3.5 text-amber-300" />
+                <span>{language === 'km' ? `ភូមិមុខឈ្នាង (${mukhChhnangCitizens.length.toLocaleString()} នាក់, ${mukhChhnangVillageRow.householdCount} ខ្នង)` : `Mukh Chhnang (${mukhChhnangCitizens.length} people)`}</span>
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-200 border border-blue-400/30">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>ភូមិរោគ ({roakCitizens.length.toLocaleString()} នាក់)</span>
+                <MapPin className="w-3.5 h-3.5 text-blue-300" />
+                <span>{language === 'km' ? `ភូមិរោគ (${roakCitizens.length.toLocaleString()} នាក់, ${roakVillageRow.householdCount} ខ្នង)` : `Roak (${roakCitizens.length} people)`}</span>
               </span>
             </div>
             
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2.5 pt-1">
               <span>{language === 'km' ? 'ស្ថិតិកុមារ និងប្រជាជនក្នុងតំបន់សេវា (តាមភូមិ និងសាលារៀន)' : 'Demographic Census Catchment Report (Villages & Schools)'}</span>
             </h2>
-            <p className="text-sm text-blue-200/90 max-w-2xl leading-relaxed">
+            <p className="text-sm text-blue-200/90 max-w-3xl leading-relaxed">
               {language === 'km' 
-                ? `ទម្រង់របាយការណ៍ផ្លូវការស្របតាមក្រសួងអប់រំ យុវជន និងកីឡា ដោយគណនាស្វ័យប្រវត្តិតាមកម្រិតអាយុ សម្រាប់ភូមិមុខឈ្នាង (៣៩០ នាក់, ៧៥ ខ្នងផ្ទះ) និងភូមិរោគ (១,៦៧២ នាក់, ៥៨ ខ្នងផ្ទះ) សរុប ២,០៦២ នាក់។`
-                : `Official MoEYS catchment format dynamically calculated for Mukh Chhnang Village (390 residents, 75 HH) and Roak Village (1,672 residents, 58 HH), totaling 2,062 residents.`}
+                ? `ទិន្នន័យជំរឿនបច្ចុប្បន្ន គឺចំណុះសាលាបឋមសិក្សារោគ (ប.សរោគ) ដែលមានភូមិចំណុះចំនួន២ គឺភូមិមុខឈ្នាង (${mukhChhnangCitizens.length.toLocaleString()} នាក់, ${mukhChhnangVillageRow.householdCount} ខ្នងផ្ទះ) និងភូមិរោគ (${roakCitizens.length.toLocaleString()} នាក់, ${roakVillageRow.householdCount} ខ្នងផ្ទះ) សរុប ${citizens.length.toLocaleString()} នាក់ (${grandTotalRow.householdCount} ខ្នងផ្ទះ)។ ចំណែកសាលា ៣ ទៀត (ប.សស្ពានស្រែង, ប.សមុខឈ្នាង, ប.សពង្រកណ្ដោល) មានភូមិចំណុះរបស់សាលារួចហើយ នឹងត្រូវបញ្ចូលពេលក្រោយធ្វើជំរឿនតាមភូមិចំណុះរួច។`
+                : `Current census data belongs to Rouk Primary School catchment, with 2 feeder villages: Mukh Chhnang (${mukhChhnangCitizens.length} residents, ${mukhChhnangVillageRow.householdCount} HH) and Roak (${roakCitizens.length} residents, ${roakVillageRow.householdCount} HH), totaling ${citizens.length} residents (${grandTotalRow.householdCount} HH). Other cluster schools will be populated after their feeder village census is conducted.`}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
-            <button
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-white text-slate-900 hover:bg-blue-50 transition shadow-sm"
-            >
-              <Download className="w-4 h-4 text-blue-600" />
-              <span>{t.exportCSV}</span>
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{t.printReport}</span>
-            </button>
+          {/* Official Connected Profile (Replaces CSV & Print buttons on the right) */}
+          <div className="flex items-center gap-3 bg-white/15 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/25 shadow-md self-start md:self-auto no-print">
+            {user ? (
+              <div className="flex items-center gap-3">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || 'User'}
+                    className="w-10 h-10 rounded-full border-2 border-emerald-400 shadow-sm object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm border-2 border-emerald-400 shadow-sm">
+                    {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-white text-sm leading-tight">
+                      {user.displayName || user.email?.split('@')[0] || 'លោក អ៊ុន ប៊ុនទុង'}
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Online" />
+                  </div>
+                  <p className="text-[11px] text-blue-200 font-medium">
+                    {user.email || 'អ្នកទទួលបន្ទុកស្ថិតិ'}
+                  </p>
+                  <p className="text-[10px] text-emerald-300 font-semibold">
+                    សាលាបឋមសិក្សា រោគ (កម្រងស្ពានស្រែង)
+                  </p>
+                </div>
+                {onSignOut && (
+                  <button
+                    onClick={onSignOut}
+                    className="p-1.5 ml-1 text-blue-200 hover:text-rose-300 hover:bg-white/10 rounded-lg transition"
+                    title={language === 'km' ? 'ចាកចេញ' : 'Logout'}
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-blue-600 text-white flex items-center justify-center font-bold text-sm border-2 border-amber-300 shadow-sm">
+                  <School className="w-5 h-5 text-white" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-white text-sm leading-tight">
+                      លោក អ៊ុន ប៊ុនទុង
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/30 text-amber-200 border border-amber-300/40 font-medium">
+                      ស្ថិតិ
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-blue-200 font-medium">
+                    អ្នកទទួលបន្ទុកស្ថិតិ • សាលាបឋមសិក្សា រោគ
+                  </p>
+                  <p className="text-[10px] text-amber-300 font-mono">
+                    កូដសាលា: 01030401017
+                  </p>
+                </div>
+                {onSignIn && (
+                  <button
+                    onClick={onSignIn}
+                    className="inline-flex items-center gap-1.5 ml-1 px-3 py-1.5 bg-white text-blue-900 hover:bg-blue-50 font-bold text-xs rounded-xl shadow-xs transition"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{language === 'km' ? 'ចូលគណនី' : 'Login'}</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -289,7 +369,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
           <div className="bg-amber-500/10 backdrop-blur-xs rounded-xl p-3 border border-amber-400/20">
             <div className="flex items-center gap-1.5 text-xs text-amber-200 font-semibold">
               <MapPin className="w-4 h-4 text-amber-300" />
-              <span>{language === 'km' ? 'ភូមិមុខឈ្នាង (ប.សមុខឈ្នាង)' : 'Mukh Chhnang Village'}</span>
+              <span>{language === 'km' ? 'ភូមិមុខឈ្នាង' : 'Mukh Chhnang Village (Rouk Feeder)'}</span>
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-white">{mukhChhnangVillageRow.grandTotal.total}</span>
@@ -303,7 +383,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
           <div className="bg-blue-500/10 backdrop-blur-xs rounded-xl p-3 border border-blue-400/20">
             <div className="flex items-center gap-1.5 text-xs text-blue-200 font-semibold">
               <MapPin className="w-4 h-4 text-blue-300" />
-              <span>{language === 'km' ? 'ភូមិរោគ (ប.សរោគ)' : 'Roak Village'}</span>
+              <span>{language === 'km' ? 'ភូមិរោគ' : 'Roak Village (Rouk Feeder)'}</span>
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-white">{roakVillageRow.grandTotal.total}</span>
@@ -341,71 +421,6 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
                 ({language === 'km' ? 'ស្រី' : 'F'}: {grandTotalRow.total7to11.female})
               </span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Control Bar: Mode Toggle (By Village vs By School) & View Tabs */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs no-print">
-        {/* Toggle Mode: By Village vs By School */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            {language === 'km' ? 'កម្រិតរបាយការណ៍៖' : 'Report Level:'}
-          </span>
-          <div className="inline-flex rounded-lg bg-slate-100 p-1 text-xs font-semibold">
-            <button
-              onClick={() => setReportMode('village')}
-              className={`px-3 py-1.5 rounded-md transition flex items-center gap-1.5 ${
-                reportMode === 'village' ? 'bg-amber-500 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? 'របាយការណ៍តាមភូមិ (មុខឈ្នាង & រោគ)' : 'By Village (Mukh Chhnang & Roak)'}</span>
-            </button>
-            <button
-              onClick={() => setReportMode('school')}
-              className={`px-3 py-1.5 rounded-md transition flex items-center gap-1.5 ${
-                reportMode === 'school' ? 'bg-blue-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <School className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? 'របាយការណ៍តាមសាលារៀន (កម្រង)' : 'By School Catchment'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Table View Format Tabs */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider hidden sm:inline flex items-center gap-1">
-            <TableIcon className="w-3.5 h-3.5 text-indigo-600" />
-            {language === 'km' ? 'ទម្រង់តារាង៖' : 'Table Layout:'}
-          </span>
-          <div className="flex rounded-lg bg-slate-100 p-1 text-xs font-semibold">
-            <button
-              onClick={() => setActiveTableTab('master')}
-              className={`px-3 py-1.5 rounded-md transition ${activeTableTab === 'master' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              {language === 'km' ? 'តារាងពេញលេញ (០-១៨+ & សរុប)' : 'Full Master Table'}
-            </button>
-            <button
-              onClick={() => setActiveTableTab('all')}
-              className={`px-3 py-1.5 rounded-md transition ${activeTableTab === 'all' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              {language === 'km' ? 'តារាងទាំងពីរ (បំបែក)' : 'Table 1 + Table 2'}
-            </button>
-            <button
-              onClick={() => setActiveTableTab('table1')}
-              className={`px-3 py-1.5 rounded-md transition ${activeTableTab === 'table1' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              {language === 'km' ? 'តារាងទី១ (០-១១ ឆ្នាំ)' : 'Table 1 (0-11 Yrs)'}
-            </button>
-            <button
-              onClick={() => setActiveTableTab('table2')}
-              className={`px-3 py-1.5 rounded-md transition ${activeTableTab === 'table2' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              {language === 'km' ? 'តារាងទី២ (១២+ ឆ្នាំ)' : 'Table 2 (12+ Yrs)'}
-            </button>
           </div>
         </div>
       </div>
@@ -1052,27 +1067,12 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
         </div>
       )}
 
-      {/* Official Signatures Block (Shown on Print & Preview) */}
-      <div className="pt-6 border-t border-slate-200 mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-800">
-        <div className="space-y-1">
-          <p className="font-bold">បានឃើញ និងបញ្ជាក់</p>
-          <p className="font-semibold text-slate-600">មេឃុំ / ចៅសង្កាត់</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងត្រា)</p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-bold">បានឃើញ និងឯកភាព</p>
-          <p className="font-semibold text-slate-600">ប្រធានកម្រង / នាយកសាលា</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងត្រា)</p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-bold">ថ្ងៃទី........ ខែ........ ឆ្នាំ២០២៦</p>
-          <p className="font-semibold text-slate-600">អ្នកធ្វើរបាយការណ៍</p>
-          <div className="h-16" />
-          <p className="text-slate-400 font-medium">(ហត្ថលេខា និងឈ្មោះ)</p>
-        </div>
-      </div>
+      {/* Official Signatures Block with Khmer Lunar & Solar dates (Shown on Print & Preview) */}
+      <OfficialSignatureSection
+        language={language}
+        defaultLocation="រោគ"
+        reportType="school"
+      />
 
       {/* MoEYS School Catchment Explanation Note */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-1.5 no-print">
