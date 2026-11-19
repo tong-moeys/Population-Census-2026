@@ -20,7 +20,8 @@ import {
   Loader2,
   Baby,
   GraduationCap,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Minimize2
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Language, ViewTab } from '../types/census';
@@ -44,6 +45,7 @@ interface HeaderProps {
   isSyncing: boolean;
   syncProgress?: number;
   isFirebaseConnected: boolean;
+  onHideHeaderFooter?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -63,12 +65,13 @@ export const Header: React.FC<HeaderProps> = ({
   onLoadFromFirebase,
   isSyncing,
   syncProgress,
-  isFirebaseConnected
+  isFirebaseConnected,
+  onHideHeaderFooter
 }) => {
   const t = translations[language];
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
+    <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs no-print print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top bar with Branding & Actions */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between py-3 gap-3 border-b border-slate-100">
@@ -216,6 +219,17 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Printer className="w-3.5 h-3.5 text-slate-600" />
             </button>
+
+            {onHideHeaderFooter && (
+              <button
+                onClick={onHideHeaderFooter}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                title={language === 'km' ? 'លាក់ Header & Footer (បង្ហាញពេញអេក្រង់)' : 'Hide Header & Footer (Full View)'}
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">{language === 'km' ? 'លាក់ Header/Footer' : 'Full View'}</span>
+              </button>
+            )}
           </div>
         </div>
 

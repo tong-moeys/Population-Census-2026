@@ -252,7 +252,7 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-3">
       {/* Official MoEYS Administrative Header */}
       <OfficialReportHeader
         title="របាយការណ៍ស្ថិតិកុមារ និងប្រជាជនក្នុងតំបន់សេវា (តាមភូមិ និងសាលារៀន)"
@@ -442,28 +442,28 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
       {/* 1. MASTER TABLE VIEW (Continuous official MoEYS Sheet) */}
       {/* ======================================================== */}
       {activeTableTab === 'master' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg print:break-inside-avoid">
+          <div className="p-4 print:p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                 {language === 'km' 
                   ? `តារាងស្ថិតិពេញលេញ៖ ស្ថិតិកុមារ និងប្រជាជនក្នុងតំបន់សេវា (${reportMode === 'village' ? 'តាមភូមិ' : 'តាមសាលារៀន'})`
                   : `Full Master Table: Demographic Census by Age Cohort (${reportMode === 'village' ? 'By Village' : 'By School'})`}
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="text-xs print:text-[9px] font-semibold px-2.5 py-1 print:px-1.5 print:py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                 {language === 'km' ? 'គ្រប់កម្រិតអាយុ ០ ដល់ ១៨+ ឆ្នាំ' : 'All Cohorts 0 to 18+ Yrs'}
               </span>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-center border-collapse">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs text-center border-collapse print-ultra-wide-table">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-bold">
-                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[150px] sticky left-0 bg-slate-100 z-10">
+                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[150px] sticky left-0 print:static bg-slate-100 z-10">
                     {reportMode === 'village' 
                       ? (language === 'km' ? 'ឈ្មោះភូមិ' : 'Village Name')
                       : (language === 'km' ? 'ឈ្មោះសាលា' : 'School Name')}
@@ -693,26 +693,26 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
       {/* 2. TABLE 1: 0 - 11 YEARS OLD */}
       {/* ======================================================== */}
       {(activeTableTab === 'all' || activeTableTab === 'table1') && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg print:break-inside-avoid">
+          <div className="p-4 print:p-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                 {language === 'km' 
                   ? `តារាងទី១៖ ស្ថិតិកុមារតាមកម្រិតអាយុ ០ ដល់ ១១ ឆ្នាំ (${reportMode === 'village' ? 'តាមភូមិ' : 'តាមសាលារៀន'})`
                   : `Table 1: Children Population from 0 to 11 Years (${reportMode === 'village' ? 'By Village' : 'By School'})`}
               </h3>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-xs print:text-[9px] font-semibold px-2.5 py-1 print:px-1.5 print:py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               {language === 'km' ? '០ ដល់ ១១ ឆ្នាំ (មត្តេយ្យ & បឋម)' : '0 to 11 Years'}
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-center border-collapse">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs text-center border-collapse print-wide-table">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-bold">
-                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[140px] sticky left-0 bg-slate-100 z-10">
+                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[140px] sticky left-0 print:static bg-slate-100 z-10">
                     {reportMode === 'village' 
                       ? (language === 'km' ? 'ឈ្មោះភូមិ' : 'Village Name')
                       : (language === 'km' ? 'ឈ្មោះសាលា' : 'School Name')}
@@ -886,26 +886,26 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
       {/* 3. TABLE 2: 12 YEARS OLD & UP, TOTAL & HOUSEHOLDS */}
       {/* ======================================================== */}
       {(activeTableTab === 'all' || activeTableTab === 'table2') && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg print:break-inside-avoid">
+          <div className="p-4 print:p-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-              <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                 {language === 'km' 
                   ? `តារាងទី២៖ ស្ថិតិអាយុ ១២ ឆ្នាំឡើង, សរុបរួម និងចំនួនគ្រួសារ (${reportMode === 'village' ? 'តាមភូមិ' : 'តាមសាលារៀន'})`
                   : `Table 2: Population 12+ Years, Grand Total & Households (${reportMode === 'village' ? 'By Village' : 'By School'})`}
               </h3>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <span className="text-xs print:text-[9px] font-semibold px-2.5 py-1 print:px-1.5 print:py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
               {language === 'km' ? '១២ ឆ្នាំឡើង និងសរុបរួម' : '12+ Years & Total'}
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-center border-collapse">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs text-center border-collapse print-wide-table">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-bold">
-                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[140px] sticky left-0 bg-slate-100 z-10">
+                  <th rowSpan={2} className="p-2.5 text-left border-r border-slate-300 min-w-[140px] sticky left-0 print:static bg-slate-100 z-10">
                     {reportMode === 'village' 
                       ? (language === 'km' ? 'ឈ្មោះភូមិ' : 'Village Name')
                       : (language === 'km' ? 'ឈ្មោះសាលា' : 'School Name')}

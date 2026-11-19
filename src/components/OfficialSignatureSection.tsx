@@ -118,7 +118,7 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
   const solarDateStr = formatKhmerSolarDate(config);
 
   return (
-    <div className="pt-6 border-t-2 border-slate-300 mt-8 space-y-4">
+    <div className="pt-6 border-t-2 border-slate-300 mt-8 print:mt-3 print:pt-3 space-y-4 print:space-y-2 print:break-inside-avoid">
       {/* Control bar hidden to preserve pristine official document look */}
 
       {/* Expanded Configuration Modal / Panel (Hidden during print) */}
@@ -403,11 +403,11 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
       {/* ========================================================== */}
       {/* OFFICIAL ADMINISTRATIVE SIGNATURE LAYOUT (Print & Preview) */}
       {/* ========================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs text-slate-900 pt-2 print:break-inside-avoid">
+      <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-6 print:gap-4 text-center text-xs print:text-[10px] text-slate-900 pt-2 print:pt-1 print:break-inside-avoid">
         {/* Left Column: បានឃើញ និងបញ្ជាក់ (មេឃុំ/ចៅសង្កាត់ ឬ មេភូមិ) */}
-        <div className="flex flex-col justify-between min-h-[140px] space-y-1">
+        <div className="flex flex-col justify-between min-h-[140px] print:min-h-[95px] space-y-1">
           <div>
-            <p className="font-bold text-slate-900 text-xs sm:text-sm">
+            <p className="font-bold text-slate-900 text-xs sm:text-sm print:text-[11px]">
               {signatories.leftHeading || 'បានឃើញ និងបញ្ជាក់'}
             </p>
             <p className="font-semibold text-slate-700 mt-0.5">
@@ -415,8 +415,8 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
             </p>
           </div>
 
-          <div className="py-6 flex items-center justify-center">
-            <span className="text-[11px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
+          <div className="py-6 print:py-3 flex items-center justify-center">
+            <span className="text-[11px] print:text-[9px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
               (ហត្ថលេខា និងត្រា)
             </span>
           </div>
@@ -431,9 +431,9 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
         </div>
 
         {/* Center Column: បានឃើញ និងឯកភាព (ប្រធានកម្រង / នាយកសាលា) */}
-        <div className="flex flex-col justify-between min-h-[140px] space-y-1">
+        <div className="flex flex-col justify-between min-h-[140px] print:min-h-[95px] space-y-1">
           <div>
-            <p className="font-bold text-slate-900 text-xs sm:text-sm">
+            <p className="font-bold text-slate-900 text-xs sm:text-sm print:text-[11px]">
               {signatories.centerHeading || 'បានឃើញ និងឯកភាព'}
             </p>
             <p className="font-semibold text-slate-700 mt-0.5">
@@ -441,8 +441,8 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
             </p>
           </div>
 
-          <div className="py-6 flex items-center justify-center">
-            <span className="text-[11px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
+          <div className="py-6 print:py-3 flex items-center justify-center">
+            <span className="text-[11px] print:text-[9px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
               (ហត្ថលេខា និងត្រា)
             </span>
           </div>
@@ -457,19 +457,19 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
         </div>
 
         {/* Right Column: Lunar Date & Solar Date (Align Left), Reporter Title & Signature (Align Center) */}
-        <div className="flex flex-col justify-between min-h-[140px] space-y-1">
+        <div className="flex flex-col justify-between min-h-[140px] print:min-h-[95px] space-y-1">
           <div className="space-y-1">
             <div className="text-left space-y-0.5">
               {/* Lunar Date (កាលបរិច្ឆេទចន្ទគតិ) */}
               {config.showLunar && (
-                <p className="text-[11px] font-medium text-slate-700 leading-tight">
+                <p className="text-[11px] print:text-[9.5px] font-medium text-slate-700 leading-tight">
                   {lunarDateStr}
                 </p>
               )}
 
               {/* Solar Date (កាលបរិច្ឆេទសុរិយគតិ) */}
               {config.showSolar && (
-                <p className="font-bold text-slate-900 text-xs sm:text-[13px] leading-tight">
+                <p className="font-bold text-slate-900 text-xs sm:text-[13px] print:text-[10px] leading-tight">
                   {solarDateStr}
                 </p>
               )}
@@ -480,8 +480,8 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
             </p>
           </div>
 
-          <div className="py-6 flex items-center justify-center">
-            <span className="text-[11px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
+          <div className="py-6 print:py-3 flex items-center justify-center">
+            <span className="text-[11px] print:text-[9px] text-slate-400 font-medium italic border border-dashed border-slate-200 rounded-md px-3 py-1">
               (ហត្ថលេខា និងឈ្មោះ)
             </span>
           </div>

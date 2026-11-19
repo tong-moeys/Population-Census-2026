@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { Printer, PanelTopOpen, Download, UserPlus } from 'lucide-react';
 import { loadParsedCensus } from './utils/censusData';
 import { Citizen, DemographicStats, Household, Language, ViewTab, EnrollmentStatus } from './types/census';
 import { Header } from './components/Header';
@@ -35,6 +36,7 @@ export const App: React.FC = () => {
   const [citizens, setCitizens] = useState<Citizen[]>(initialData.citizens);
   const [language, setLanguage] = useState<Language>('km');
   const [currentTab, setCurrentTab] = useState<ViewTab>('comparison');
+  const [hideHeaderFooter, setHideHeaderFooter] = useState<boolean>(true);
 
 
   // MoEYS Standard Students State
@@ -510,41 +512,115 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-khmer">
+    <div className="min-h-screen bg-slate-50 print:bg-white flex flex-col font-khmer">
       {/* Toast Notification */}
       {syncToast && (
-        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200 no-print print:hidden">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span>{syncToast}</span>
         </div>
       )}
 
+      {/* Compact Floating Controls when Header & Footer are hidden (Full View & Print Ready) */}
+      {hideHeaderFooter && (
+        <div className="sticky top-2 z-40 px-2 sm:px-4 pt-2 flex justify-end pointer-events-none no-print print:hidden">
+          <div className="pointer-events-auto inline-flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-300 shadow-lg rounded-xl px-2.5 py-1.5 text-xs">
+            <select
+              value={currentTab}
+              onChange={(e) => setCurrentTab(e.target.value as ViewTab)}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
+              aria-label="Select Tab"
+            >
+              <option value="comparison">{t.comparisonTable}</option>
+              <option value="school-report">{t.schoolReport}</option>
+              <option value="enrollment">{t.enrollmentCampaign}</option>
+              <option value="students">{t.students}</option>
+              <option value="citizens">{t.citizens}</option>
+              <option value="households">{t.households}</option>
+              <option value="dashboard">{t.dashboard}</option>
+              <option value="pyramid">{t.pyramid}</option>
+              <option value="analytics">{t.analytics}</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-2xs transition cursor-pointer"
+              title={t.printReport}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{language === 'km' ? 'បោះពុម្ព' : 'Print'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer"
+              title={t.exportCSV}
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCitizenToEdit(null);
+                setIsFormModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer"
+              title={t.addCitizen}
+            >
+              <UserPlus className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden md:inline">{t.addCitizen}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setHideHeaderFooter(false)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold border border-slate-200 transition cursor-pointer"
+              title={language === 'km' ? 'បង្ហាញ Header និង Footer ពេញឡើងវិញ' : 'Show Full Header & Footer'}
+            >
+              <PanelTopOpen className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{language === 'km' ? 'បង្ហាញ Header / Footer' : 'Show Header/Footer'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <Header
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        language={language}
-        onLanguageChange={setLanguage}
-        onExportCSV={handleExportCSV}
-        onExportJSON={handleExportJSON}
-        onPrint={handlePrint}
-        onAddNewCitizen={() => {
-          setCitizenToEdit(null);
-          setIsFormModalOpen(true);
-        }}
-        totalRecords={citizens.length}
-        user={user}
-        onSignIn={handleSignIn}
-        onSignOut={handleSignOut}
-        onSyncToFirebase={handleSyncToFirebase}
-        onLoadFromFirebase={handleLoadFromFirebase}
-        isSyncing={isSyncing}
-        syncProgress={syncProgress}
-        isFirebaseConnected={isFirebaseConnected}
-      />
+      {!hideHeaderFooter && (
+        <Header
+          currentTab={currentTab}
+          onTabChange={setCurrentTab}
+          language={language}
+          onLanguageChange={setLanguage}
+          onExportCSV={handleExportCSV}
+          onExportJSON={handleExportJSON}
+          onPrint={handlePrint}
+          onAddNewCitizen={() => {
+            setCitizenToEdit(null);
+            setIsFormModalOpen(true);
+          }}
+          totalRecords={citizens.length}
+          user={user}
+          onSignIn={handleSignIn}
+          onSignOut={handleSignOut}
+          onSyncToFirebase={handleSyncToFirebase}
+          onLoadFromFirebase={handleLoadFromFirebase}
+          isSyncing={isSyncing}
+          syncProgress={syncProgress}
+          isFirebaseConnected={isFirebaseConnected}
+          onHideHeaderFooter={() => setHideHeaderFooter(true)}
+        />
+      )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className={`flex-1 w-full mx-auto transition-all ${
+        hideHeaderFooter
+          ? 'max-w-none px-2 sm:px-4 py-3'
+          : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
+      } print:max-w-none print:px-0 print:py-0`}>
         {currentTab === 'dashboard' && (
           <DashboardView
             stats={stats}
@@ -677,20 +753,22 @@ export const App: React.FC = () => {
       )}
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700">សាលាបឋមសិក្សា រោគ (ប.សរោគ)</span>
-            <span>•</span>
-            <span>{t.appTitle}</span>
-            <span>•</span>
-            <span className="text-emerald-600 font-medium">Firebase Connected</span>
+      {!hideHeaderFooter && (
+        <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-700">សាលាបឋមសិក្សា រោគ (ប.សរោគ)</span>
+              <span>•</span>
+              <span>{t.appTitle}</span>
+              <span>•</span>
+              <span className="text-emerald-600 font-medium">Firebase Connected</span>
+            </div>
+            <div>
+              <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ និងស្ថិតិតំបន់សេវាសាលារៀន ឆ្នាំ២០២៦' : 'Catchment Census & Demographic Management System 2026'}</span>
+            </div>
           </div>
-          <div>
-            <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ និងស្ថិតិតំបន់សេវាសាលារៀន ឆ្នាំ២០២៦' : 'Catchment Census & Demographic Management System 2026'}</span>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 };

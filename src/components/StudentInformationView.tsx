@@ -79,6 +79,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
   const [poorCardFilter, setPoorCardFilter] = useState<'all' | PoorCardStatus>('all');
   const [eyeFilter, setEyeFilter] = useState<'all' | EyeCheckResult>('all');
   const [sectionFilter, setSectionFilter] = useState<'all' | string>('all');
+  const [ageFilter, setAgeFilter] = useState<'all' | 3 | 4 | 5 | 6 | 7>('all');
 
   // Sorting
   const [sortField, setSortField] = useState<'code' | 'name' | 'grade' | 'age'>('grade');
@@ -91,6 +92,11 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
   // Filtered Students
   const filteredStudents = useMemo(() => {
     return students.filter(student => {
+      // Age filter (3, 4, 5, 6, 7 years)
+      if (ageFilter !== 'all' && student.age !== ageFilter) {
+        return false;
+      }
+
       // Grade filter
       if (gradeFilter !== 'all') {
         if (gradeFilter === 'preschool' && !student.grade.includes('មត្តេយ្យ')) return false;
@@ -162,7 +168,24 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
       }
       return 0;
     });
-  }, [students, gradeFilter, villageFilter, genderFilter, poorCardFilter, eyeFilter, sectionFilter, searchTerm, sortField, sortOrder]);
+  }, [students, ageFilter, gradeFilter, villageFilter, genderFilter, poorCardFilter, eyeFilter, sectionFilter, searchTerm, sortField, sortOrder]);
+
+  // Live student counts by exact age 3, 4, 5, 6, 7
+  const studentAgeCounts = useMemo(() => {
+    const context = students.filter(student => {
+      if (villageFilter !== 'all' && student.currentVillage !== villageFilter) return false;
+      if (genderFilter !== 'all' && student.gender !== genderFilter) return false;
+      return true;
+    });
+    return ([3, 4, 5, 6, 7] as const).map(age => {
+      const list = context.filter(s => s.age === age);
+      return {
+        age,
+        total: list.length,
+        female: list.filter(s => s.gender === 'ស្រី').length
+      };
+    });
+  }, [students, villageFilter, genderFilter]);
 
   // Pagination Slice
   const effectivePageSize = pageSize === 'all' ? filteredStudents.length || 1 : pageSize;
@@ -207,9 +230,9 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-3">
       {/* Top Banner & Title */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 sm:p-7 shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 sm:p-7 shadow-lg relative overflow-hidden no-print">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -491,9 +514,10 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
         </div>
 
         {/* Clear filters if active */}
-        {(gradeFilter !== 'all' || villageFilter !== 'all' || genderFilter !== 'all' || poorCardFilter !== 'all' || eyeFilter !== 'all' || sectionFilter !== 'all' || searchTerm.trim()) && (
+        {(ageFilter !== 'all' || gradeFilter !== 'all' || villageFilter !== 'all' || genderFilter !== 'all' || poorCardFilter !== 'all' || eyeFilter !== 'all' || sectionFilter !== 'all' || searchTerm.trim()) && (
           <button
             onClick={() => {
+              setAgeFilter('all');
               setGradeFilter('all');
               setVillageFilter('all');
               setGenderFilter('all');
@@ -508,6 +532,57 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             លុបតម្រង ({filteredStudents.length} / {students.length})
           </button>
         )}
+
+        {/* Exact Age Quick Filter & Count Pills (3, 4, 5, 6, 7 years) */}
+        <div className="w-full pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-slate-700 mr-1">
+            {language === 'km' ? 'តម្រង & រាប់អាយុ៖' : 'Age Filter & Count:'}
+          </span>
+          <button
+            type="button"
+            onClick={() => { setAgeFilter('all'); setCurrentPage(1); }}
+            className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition ${
+              ageFilter === 'all'
+                ? 'bg-slate-800 text-white border-slate-900'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            {language === 'km' ? `ទាំងអស់ (${students.length})` : `All (${students.length})`}
+          </button>
+          {studentAgeCounts.map(item => {
+            const isActive = ageFilter === item.age;
+            return (
+              <button
+                key={item.age}
+                type="button"
+                onClick={() => {
+                  setAgeFilter(isActive ? 'all' : item.age);
+                  setCurrentPage(1);
+                }}
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition flex items-center gap-1 ${
+                  isActive
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                    : 'bg-indigo-50/70 text-indigo-950 border-indigo-200 hover:bg-indigo-100'
+                }`}
+              >
+                <span>{language === 'km' ? `${item.age} ឆ្នាំ` : `${item.age}y`}</span>
+                <span className={`px-1 rounded text-[10px] font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-white text-indigo-800 border border-indigo-200'
+                }`}>
+                  {item.total}
+                </span>
+                <span className={`text-[10px] font-semibold ${isActive ? 'text-pink-100' : 'text-pink-700'}`}>
+                  ({language === 'km' ? 'ស្រី' : 'F'} {item.female})
+                </span>
+              </button>
+            );
+          })}
+          <span className="ml-auto text-[11px] font-bold text-slate-700">
+            {language === 'km'
+              ? `រកឃើញ៖ ${filteredStudents.length} នាក់ (ស្រី ${filteredStudents.filter(s => s.gender === 'ស្រី').length})`
+              : `Found: ${filteredStudents.length} (F ${filteredStudents.filter(s => s.gender === 'ស្រី').length})`}
+          </span>
+        </div>
       </div>
 
       {/* Official Print Header (Only visible when printing) */}
@@ -620,16 +695,16 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
       </div>
 
       {/* Official MoEYS Student Information Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto max-h-[78vh] overflow-y-auto">
-          <table className={`w-full text-left border-collapse font-khmer ${
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
+        <div className="overflow-x-auto max-h-[78vh] overflow-y-auto print:overflow-visible print:max-h-none">
+          <table className={`w-full text-left border-collapse font-khmer print-wide-table ${
             density === 'ultra-compact' 
               ? 'text-[9.5px] leading-tight' 
               : density === 'compact' 
                 ? 'text-[11px] leading-snug' 
                 : 'text-xs leading-normal'
           }`}>
-            <thead className={`sticky top-0 bg-slate-100 z-20 text-slate-700 uppercase font-bold border-b border-slate-300 shadow-2xs select-none ${
+            <thead className={`sticky top-0 print:static bg-slate-100 z-20 text-slate-700 uppercase font-bold border-b border-slate-300 shadow-2xs select-none ${
               density === 'ultra-compact' 
                 ? 'text-[9px]' 
                 : density === 'compact' 

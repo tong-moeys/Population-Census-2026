@@ -276,7 +276,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-3">
       {/* Official MoEYS Administrative Header */}
       <OfficialReportHeader
         title={
@@ -552,18 +552,18 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
           </div>
 
           {/* Primary School Comparison Table Component */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg">
+            <div className="p-4 print:p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-blue-600" />
-                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                   {language === 'km' 
                     ? 'តារាងប្រៀបធៀប៖ កុមារក្រុម២ (៧០-៨២ ខែ) និងកុមារបឋមសិក្សា (៦ ឆ្នាំឡើង)' 
                     : 'Comparison Table: Group 2 Children (70-82 Mos) & Primary Cohorts (Age 6+)'}
                 </h3>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 no-print">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-400" />
                   <span>{language === 'km' ? 'សិស្សបានចុះឈ្មោះ (អាចបញ្ចូលទិន្នន័យ)' : 'Enrolled (Editable inputs)'}</span>
@@ -579,8 +579,8 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-[10px] text-center border-collapse leading-tight font-khmer">
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full text-[10px] text-center border-collapse leading-tight font-khmer print-ultra-wide-table">
                 <thead>
                   {/* LEVEL 1 HEADERS */}
                   <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
@@ -995,24 +995,24 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
       {/* VIEW 2: PRE-SCHOOL (AGE 3-5 YEARS) COMPARISON TABLE                       */}
       {/* ========================================================================= */}
       {activeMode === 'preschool' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-6 print:space-y-3">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg">
+            <div className="p-4 print:p-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-emerald-600" />
-                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                   {language === 'km' 
                     ? 'តារាងប្រៀបធៀប៖ ទិន្នន័យកុមារមត្តេយ្យក្នុងភូមិ និង ចំនួនសិស្សចុះឈ្មោះចូលរៀន (៣-៥ ឆ្នាំ)' 
                     : 'Comparison Table: Village Census vs Enrolled Students (Ages 3-5)'}
                 </h3>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="text-xs print:text-[9px] font-semibold px-2.5 py-1 print:px-1.5 print:py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                 ឯកសារភ្ជាប់ MoEYS Sheet
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-[10px] text-center border-collapse leading-tight font-khmer">
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full text-[10px] text-center border-collapse leading-tight font-khmer print-ultra-wide-table">
                 <thead>
                   <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
                     <th rowSpan={3} className="py-1 px-1.5 text-left border-r border-slate-300 min-w-[115px] sticky left-0 bg-slate-100 z-20">
@@ -1335,8 +1335,8 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left border-collapse">
+              <div className="overflow-x-auto print:overflow-visible">
+                <table className="w-full text-xs text-left border-collapse print-standard-table">
                   <thead>
                     <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                       <th className="p-2.5">កម្រិតថ្នាក់ (Grade)</th>
@@ -1491,7 +1491,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
               </div>
 
               {/* Search filter for remaining children */}
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-full sm:w-64 no-print">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -1511,8 +1511,8 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-[10px] text-left border-collapse leading-tight font-khmer">
+              <div className="overflow-x-auto print:overflow-visible">
+                <table className="w-full text-[10px] text-left border-collapse leading-tight font-khmer print-standard-table">
                   <thead>
                     <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-[9.5px]">
                       <th className="py-1 px-1.5 w-8 text-center">ល.រ</th>
@@ -1523,7 +1523,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                       <th className="py-1 px-1.5 w-20">លេខកូដខ្នងផ្ទះ</th>
                       <th className="py-1 px-1.5 min-w-[70px]">ភូមិ</th>
                       <th className="py-1 px-1.5 min-w-[85px]">ទំនាក់ទំនងគ្រួសារ</th>
-                      <th className="py-1 px-1.5 text-center w-14">សកម្មភាព</th>
+                      <th className="py-1 px-1.5 text-center w-14 no-print">សកម្មភាព</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1551,7 +1551,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                             </span>
                           </td>
                           <td className="py-1 px-1.5 text-slate-600">{c.relationship || 'កូន'}</td>
-                          <td className="py-1 px-1.5 text-center">
+                          <td className="py-1 px-1.5 text-center no-print">
                             {onSelectCitizen && (
                               <button
                                 onClick={() => onSelectCitizen(c)}

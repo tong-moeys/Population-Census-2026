@@ -53,6 +53,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
   const [villageFilter, setVillageFilter] = useState<'all' | string>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | EnrollmentStatus>('not_enrolled');
+  const [ageFilter, setAgeFilter] = useState<'all' | 3 | 4 | 5 | 6 | 7>('all');
   const [highlightPending, setHighlightPending] = useState(true);
   const [sortField, setSortField] = useState<'months' | 'name' | 'village' | 'household'>('months');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -72,6 +73,11 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
   // Apply search & filters
   const filteredChildren = useMemo(() => {
     return baseList.filter(child => {
+      // Exact age filter (3, 4, 5, 6, 7)
+      if (ageFilter !== 'all' && child.ageInYears !== ageFilter) {
+        return false;
+      }
+
       // Village filter
       if (villageFilter !== 'all' && (child.citizen.village || 'រោគ') !== villageFilter) {
         return false;
@@ -124,7 +130,35 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
       }
       return 0;
     });
-  }, [baseList, villageFilter, genderFilter, statusFilter, searchTerm, sortField, sortOrder]);
+  }, [baseList, ageFilter, villageFilter, genderFilter, statusFilter, searchTerm, sortField, sortOrder]);
+
+  // Age counts (3, 4, 5, 6, 7 years) respecting active village/gender/status filters
+  const ageQuickStats = useMemo(() => {
+    const contextList = citizens.filter(c => {
+      if (villageFilter !== 'all' && (c.village || 'រោគ') !== villageFilter) return false;
+      if (genderFilter !== 'all' && c.gender !== genderFilter) return false;
+      if (statusFilter !== 'all' && (c.enrollmentStatus || 'not_enrolled') !== statusFilter) return false;
+      return true;
+    });
+    const listToCount = baseList.filter(child => {
+      if (villageFilter !== 'all' && (child.citizen.village || 'រោគ') !== villageFilter) return false;
+      if (genderFilter !== 'all' && child.citizen.gender !== genderFilter) return false;
+      if (statusFilter !== 'all' && child.enrollmentStatus !== statusFilter) return false;
+      return true;
+    });
+
+    const targetAges = [3, 4, 5, 6, 7] as const;
+    return targetAges.map(age => {
+      const inRoster = listToCount.filter(child => child.ageInYears === age);
+      const inCensus = contextList.filter(c => c.age === age);
+      return {
+        age,
+        total: inRoster.length,
+        female: inRoster.filter(c => c.citizen.gender === 'ស្រី').length,
+        censusTotal: inCensus.length
+      };
+    });
+  }, [citizens, baseList, villageFilter, genderFilter, statusFilter]);
 
   const handleSort = (field: 'months' | 'name' | 'village' | 'household') => {
     if (sortField === field) {
@@ -603,12 +637,62 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
           </div>
         </div>
 
+        {/* Exact Age Quick Filters & Counts (3, 4, 5, 6, 7 years) */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 mr-1">
+            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{language === 'km' ? 'ចម្រោះ និងរាប់តាមអាយុ៖' : 'Age Filter & Count:'}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setAgeFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+              ageFilter === 'all'
+                ? 'bg-slate-800 text-white border-slate-900 shadow-2xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            {language === 'km' ? 'គ្រប់អាយុ' : 'All Ages'}
+          </button>
+          {ageQuickStats.map(item => {
+            const isActive = ageFilter === item.age;
+            return (
+              <button
+                key={item.age}
+                type="button"
+                onClick={() => {
+                  if (item.age === 6 || item.age === 7) setActiveTab('all');
+                  setAgeFilter(isActive ? 'all' : item.age);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                    : 'bg-emerald-50/70 text-emerald-950 border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <span>{language === 'km' ? `${item.age} ឆ្នាំ` : `${item.age}y`}</span>
+                <span className={`px-1.5 py-0.2 rounded text-[11px] font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-white text-emerald-800 border border-emerald-200'
+                }`}>
+                  {item.total}
+                </span>
+                <span className={`text-[10px] font-semibold ${isActive ? 'text-pink-100' : 'text-pink-700'}`}>
+                  ({language === 'km' ? 'ស្រី' : 'F'} {item.female})
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Counter and Results */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span>
               {language === 'km' ? 'បង្ហាញកុមារសរុប' : 'Showing children'}:{' '}
               <strong className="text-slate-900">{filteredChildren.length}</strong> / {baseList.length}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-pink-50 text-pink-800 border border-pink-200 font-bold text-[11px]">
+              {language === 'km' ? 'ស្រី៖' : 'Female:'} {filteredChildren.filter(c => c.citizen.gender === 'ស្រី').length}
             </span>
             {pendingInFiltered.length > 0 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
@@ -624,9 +708,9 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
       </div>
 
       {/* Children Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left border-collapse">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-xs text-left border-collapse print-standard-table">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                 <th className="py-3 px-3 w-12 text-center">#</th>

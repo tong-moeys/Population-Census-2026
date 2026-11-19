@@ -137,6 +137,12 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
 
       // Age range filter
       if (ageRangeFilter !== 'all') {
+        if (ageRangeFilter === 'age_3' && c.age !== 3) return false;
+        if (ageRangeFilter === 'age_4' && c.age !== 4) return false;
+        if (ageRangeFilter === 'age_5' && c.age !== 5) return false;
+        if (ageRangeFilter === 'age_6' && c.age !== 6) return false;
+        if (ageRangeFilter === 'age_7' && c.age !== 7) return false;
+        if (ageRangeFilter === 'age_3_7' && (c.age < 3 || c.age > 7)) return false;
         if (ageRangeFilter === 'child' && c.age >= 18) return false;
         if (ageRangeFilter === 'youth' && (c.age < 18 || c.age > 35)) return false;
         if (ageRangeFilter === 'adult' && (c.age < 36 || c.age > 59)) return false;
@@ -166,6 +172,57 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
       return sortOrder === 'asc' ? comparison : -comparison;
     });
   }, [citizens, searchTerm, genderFilter, occupationFilter, villageFilter, ageRangeFilter, householdFilter, sortField, sortOrder]);
+
+  // Live counts for ages 3, 4, 5, 6, 7 (respecting active village, gender, occupation, search, and household filters)
+  const ageQuickCounts = useMemo(() => {
+    const base = citizens.filter(c => {
+      const citizenVillage = c.village?.trim() || 'រោគ';
+      if (villageFilter !== 'all' && citizenVillage !== villageFilter) return false;
+      if (genderFilter !== 'all' && c.gender !== genderFilter) return false;
+      if (occupationFilter !== 'all' && c.occupation !== occupationFilter) return false;
+      if (householdFilter.trim() && String(c.householdId) !== householdFilter.trim()) return false;
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase().trim();
+        const matchesName = c.name.toLowerCase().includes(query);
+        const matchesId = String(c.originalId || c.id).includes(query);
+        const matchesOcc = c.occupation.toLowerCase().includes(query);
+        const matchesRel = c.relationship.toLowerCase().includes(query);
+        const matchesDob = c.dob.toLowerCase().includes(query);
+        const matchesHId = String(c.householdId).includes(query);
+        const matchesVillage = citizenVillage.toLowerCase().includes(query);
+        if (!matchesName && !matchesId && !matchesOcc && !matchesRel && !matchesDob && !matchesHId && !matchesVillage) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const targetAges = [3, 4, 5, 6, 7] as const;
+    const byAge = targetAges.map(age => {
+      const matches = base.filter(c => c.age === age);
+      return {
+        age,
+        key: `age_${age}`,
+        total: matches.length,
+        female: matches.filter(c => c.gender === 'ស្រី').length,
+        male: matches.filter(c => c.gender === 'ប្រុស').length
+      };
+    });
+
+    const combined = base.filter(c => c.age >= 3 && c.age <= 7);
+    return {
+      allTotal: base.length,
+      byAge,
+      combinedTotal: combined.length,
+      combinedFemale: combined.filter(c => c.gender === 'ស្រី').length
+    };
+  }, [citizens, villageFilter, genderFilter, occupationFilter, householdFilter, searchTerm]);
+
+  const filteredGenderCounts = useMemo(() => {
+    const female = filteredCitizens.filter(c => c.gender === 'ស្រី').length;
+    const male = filteredCitizens.filter(c => c.gender === 'ប្រុស').length;
+    return { male, female };
+  }, [filteredCitizens]);
 
   // Paginated records
   const totalPages = Math.ceil(filteredCitizens.length / pageSize) || 1;
@@ -215,8 +272,26 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Print Header (Only visible when printing) */}
+      <div className="hidden print:block pb-2 border-b-2 border-slate-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              {language === 'km' ? 'បញ្ជីរាយនាមប្រជាជនក្នុងតំបន់សេវា សាលាបឋមសិក្សារោគ' : 'Rouk Primary Catchment Population Roster'}
+            </h2>
+            <p className="text-[11px] text-slate-600">
+              {villageFilter !== 'all' ? `ភូមិ ${villageFilter}` : 'ភូមិរោគ និង ភូមិមុខឈ្នាង'}
+              {ageRangeFilter.startsWith('age_') ? ` • ${ageRangeFilter === 'age_3_7' ? 'អាយុ ៣-៧ ឆ្នាំ' : `អាយុ ${ageRangeFilter.replace('age_', '')} ឆ្នាំ`}` : ''}
+            </p>
+          </div>
+          <div className="text-right text-xs font-bold text-slate-900">
+            សរុប៖ {filteredCitizens.length.toLocaleString()} នាក់ (ប្រុស {filteredGenderCounts.male.toLocaleString()} / ស្រី {filteredGenderCounts.female.toLocaleString()})
+          </div>
+        </div>
+      </div>
+
       {/* Search and Filter Panel */}
-      <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-4">
+      <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-4 no-print">
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -325,6 +400,12 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
               className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
             >
               <option value="all">{t.filterAgeGroup}</option>
+              <option value="age_3">{language === 'km' ? `អាយុ ៣ ឆ្នាំ (${ageQuickCounts.byAge[0].total})` : `Age 3 (${ageQuickCounts.byAge[0].total})`}</option>
+              <option value="age_4">{language === 'km' ? `អាយុ ៤ ឆ្នាំ (${ageQuickCounts.byAge[1].total})` : `Age 4 (${ageQuickCounts.byAge[1].total})`}</option>
+              <option value="age_5">{language === 'km' ? `អាយុ ៥ ឆ្នាំ (${ageQuickCounts.byAge[2].total})` : `Age 5 (${ageQuickCounts.byAge[2].total})`}</option>
+              <option value="age_6">{language === 'km' ? `អាយុ ៦ ឆ្នាំ (${ageQuickCounts.byAge[3].total})` : `Age 6 (${ageQuickCounts.byAge[3].total})`}</option>
+              <option value="age_7">{language === 'km' ? `អាយុ ៧ ឆ្នាំ (${ageQuickCounts.byAge[4].total})` : `Age 7 (${ageQuickCounts.byAge[4].total})`}</option>
+              <option value="age_3_7">{language === 'km' ? `អាយុ ៣-៧ ឆ្នាំ (${ageQuickCounts.combinedTotal})` : `Ages 3-7 (${ageQuickCounts.combinedTotal})`}</option>
               <option value="child">{language === 'km' ? 'កុមារ (< ១៨)' : 'Children (< 18)'}</option>
               <option value="youth">{language === 'km' ? 'យុវជន (១៨-៣៥)' : 'Youth (18-35)'}</option>
               <option value="adult">{language === 'km' ? 'មនុស្សពេញវ័យ (៣៦-៥៩)' : 'Adults (36-59)'}</option>
@@ -346,15 +427,93 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
             />
           </div>
         </div>
+
+        {/* Exact Age Quick Filters & Live Counts (3, 4, 5, 6, 7 years) */}
+        <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 mr-1">
+            <Calendar className="w-3.5 h-3.5 text-blue-600" />
+            <span>{language === 'km' ? 'ចម្រោះ និងរាប់តាមអាយុ៖' : 'Age Filter & Count:'}</span>
+          </span>
+
+          <button
+            type="button"
+            onClick={() => { setAgeRangeFilter('all'); setCurrentPage(1); }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+              ageRangeFilter === 'all'
+                ? 'bg-slate-800 text-white border-slate-900 shadow-2xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            {language === 'km' ? `ទាំងអស់ (${ageQuickCounts.allTotal.toLocaleString()})` : `All (${ageQuickCounts.allTotal})`}
+          </button>
+
+          {ageQuickCounts.byAge.map((item) => {
+            const isActive = ageRangeFilter === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setAgeRangeFilter(isActive ? 'all' : item.key);
+                  setCurrentPage(1);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+                    : 'bg-blue-50/70 text-blue-950 border-blue-200 hover:bg-blue-100'
+                }`}
+              >
+                <span>{language === 'km' ? `${item.age} ឆ្នាំ` : `${item.age}y`}</span>
+                <span className={`px-1.5 py-0.2 rounded text-[11px] font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-white text-blue-800 border border-blue-200'
+                }`}>
+                  {item.total}
+                </span>
+                <span className={`text-[10px] font-semibold ${isActive ? 'text-pink-100' : 'text-pink-700'}`}>
+                  ({language === 'km' ? 'ស្រី' : 'F'} {item.female})
+                </span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => {
+              setAgeRangeFilter(ageRangeFilter === 'age_3_7' ? 'all' : 'age_3_7');
+              setCurrentPage(1);
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 ${
+              ageRangeFilter === 'age_3_7'
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                : 'bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <span>{language === 'km' ? 'សរុប ៣-៧ ឆ្នាំ' : 'Total 3-7y'}</span>
+            <span className={`px-1.5 py-0.2 rounded text-[11px] font-black ${
+              ageRangeFilter === 'age_3_7' ? 'bg-white/20 text-white' : 'bg-white text-emerald-800 border border-emerald-200'
+            }`}>
+              {ageQuickCounts.combinedTotal}
+            </span>
+            <span className={`text-[10px] font-semibold ${ageRangeFilter === 'age_3_7' ? 'text-pink-100' : 'text-pink-700'}`}>
+              ({language === 'km' ? 'ស្រី' : 'F'} {ageQuickCounts.combinedFemale})
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Table Results Bar */}
-      <div className="flex items-center justify-between px-1 text-xs text-slate-500">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500 no-print">
+        <div className="flex flex-wrap items-center gap-2">
           <span>{t.recordsFound}: </span>
-          <span className="font-bold text-slate-900">{filteredCitizens.length.toLocaleString()}</span>
+          <span className="font-bold text-slate-900 text-sm">{filteredCitizens.length.toLocaleString()}</span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-semibold text-[11px]">
+            {language === 'km' ? 'ប្រុស' : 'M'}: {filteredGenderCounts.male.toLocaleString()}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-pink-50 text-pink-800 border border-pink-200 font-semibold text-[11px]">
+            {language === 'km' ? 'ស្រី' : 'F'}: {filteredGenderCounts.female.toLocaleString()}
+          </span>
           {hasActiveFilters && (
-            <span className="ml-1 text-slate-400">({language === 'km' ? 'ពីសរុប ' : 'of total '} {citizens.length.toLocaleString()})</span>
+            <span className="text-slate-400">({language === 'km' ? 'ពីសរុប ' : 'of total '} {citizens.length.toLocaleString()})</span>
           )}
         </div>
 
@@ -368,14 +527,15 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
+            <option value={500}>500</option>
           </select>
         </div>
       </div>
 
       {/* Main Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-left text-xs sm:text-sm print-standard-table">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold text-[11px] tracking-wider select-none">
               <tr>
                 <th 
@@ -442,7 +602,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
                     <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                   </div>
                 </th>
-                <th className="py-3 px-4 text-right">
+                <th className="py-3 px-4 text-right no-print">
                   <span>{t.actions}</span>
                 </th>
               </tr>
@@ -517,7 +677,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
                           #{c.householdId}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3 px-4 text-right no-print" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => onSelectCitizen(c)}
@@ -556,7 +716,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
 
         {/* Pagination Bar */}
         {filteredCitizens.length > 0 && (
-          <div className="py-3 px-4 bg-slate-50/50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="py-3 px-4 bg-slate-50/50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 no-print">
             <div>
               <span>{t.page} </span>
               <span className="font-bold text-slate-900">{currentPage}</span>
