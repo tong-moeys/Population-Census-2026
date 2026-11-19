@@ -46,7 +46,7 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
   const t = translations[language];
 
   // Tab: 'all' | 'group1' (3-5 years) | 'group2' (70-82 months)
-  const [activeTab, setActiveTab] = useState<'all' | 'group1' | 'group2'>('group2');
+  const [activeTab, setActiveTab] = useState<'all' | 'group1' | 'group2'>('group1');
   
   // Filters (Default to 'not_enrolled' so missing students from the roster are shown immediately)
   const [searchTerm, setSearchTerm] = useState('');
@@ -364,6 +364,79 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
         </div>
       </div>
 
+      {/* Roster Comparison Summary Cards (Pre-school vs Grade 1) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 no-print">
+        {/* Group 1 Pre-school Roster Comparison */}
+        <div
+          onClick={() => {
+            setActiveTab('group1');
+            setStatusFilter('not_enrolled');
+          }}
+          className={`cursor-pointer rounded-2xl p-4 border-2 transition shadow-xs ${
+            activeTab === 'group1' && statusFilter === 'not_enrolled'
+              ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-400/30'
+              : 'bg-white border-amber-200 hover:border-amber-400'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <Baby className="w-3.5 h-3.5 text-amber-700" />
+                <span>{language === 'km' ? 'ក្រុម១៖ មត្តេយ្យសិក្សា (អាយុ ៣-៥ឆ្នាំ)' : 'Group 1: Pre-school (3-5 Yrs)'}</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 pt-1">
+                {language === 'km'
+                  ? `សិស្សមិនទាន់មានក្នុងតារាងមត្តេយ្យ៖ ${group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់`
+                  : `Missing from Pre-school Roster: ${group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} children`}
+              </h3>
+              <p className="text-xs text-slate-600">
+                {language === 'km'
+                  ? `ក្នុងជំរឿនសរុប ${group1Children.length} នាក់ • មានក្នុងតារាងរួច ${group1Children.filter(c => c.enrollmentStatus === 'enrolled').length} នាក់ • នៅសល់ ${group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់ត្រូវប្រមូលចូលរៀន`
+                  : `Total in census: ${group1Children.length} • Enrolled: ${group1Children.filter(c => c.enrollmentStatus === 'enrolled').length} • Remaining: ${group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length}`}
+              </p>
+            </div>
+            <span className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-black whitespace-nowrap shadow-xs">
+              {group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} {language === 'km' ? 'នាក់' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Group 2 Grade 1 Roster Comparison */}
+        <div
+          onClick={() => {
+            setActiveTab('group2');
+            setStatusFilter('not_enrolled');
+          }}
+          className={`cursor-pointer rounded-2xl p-4 border-2 transition shadow-xs ${
+            activeTab === 'group2' && statusFilter === 'not_enrolled'
+              ? 'bg-emerald-50 border-emerald-600 ring-2 ring-emerald-500/30'
+              : 'bg-white border-emerald-200 hover:border-emerald-400'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-700" />
+                <span>{language === 'km' ? 'ក្រុម២៖ ថ្នាក់ទី១ បឋមសិក្សា (៧០-៨២ខែ)' : 'Group 2: Grade 1 (70-82 Mos)'}</span>
+              </div>
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 pt-1">
+                {language === 'km'
+                  ? `សិស្សមិនទាន់មានក្នុងតារាងថ្នាក់ទី១៖ ${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់`
+                  : `Missing from Grade 1 Roster: ${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} children`}
+              </h3>
+              <p className="text-xs text-slate-600">
+                {language === 'km'
+                  ? `ក្នុងជំរឿនសរុប ${group2Children.length} នាក់ • មានក្នុងតារាងរួច ${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length} នាក់ • នៅសល់ ${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់ត្រូវប្រមូលចូលរៀន`
+                  : `Total in census: ${group2Children.length} • Enrolled: ${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length} • Remaining: ${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length}`}
+              </p>
+            </div>
+            <span className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-black whitespace-nowrap shadow-xs">
+              {group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} {language === 'km' ? 'នាក់' : ''}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs and Filter Control Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4 no-print">
         {/* Main Tab Switcher & Action Tools */}
@@ -409,14 +482,13 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Quick Roster Comparison Pills for Grade 1 (70-82 months) */}
+            {/* Quick Roster Comparison Pills for Active Group */}
             <button
               onClick={() => {
-                setActiveTab('group2');
                 setStatusFilter('not_enrolled');
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
-                activeTab === 'group2' && statusFilter === 'not_enrolled'
+                statusFilter === 'not_enrolled'
                   ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
                   : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border-rose-200'
               }`}
@@ -424,18 +496,17 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
               <AlertCircle className="w-3.5 h-3.5" />
               <span>
                 {language === 'km'
-                  ? `មិនមានក្នុងតារាងចុះឈ្មោះ (${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់)`
-                  : `Missing from Roster (${group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length})`}
+                  ? `មិនមានក្នុងតារាងចុះឈ្មោះ (${baseList.filter(c => c.enrollmentStatus === 'not_enrolled').length} នាក់)`
+                  : `Missing from Roster (${baseList.filter(c => c.enrollmentStatus === 'not_enrolled').length})`}
               </span>
             </button>
 
             <button
               onClick={() => {
-                setActiveTab('group2');
                 setStatusFilter('enrolled');
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition ${
-                activeTab === 'group2' && statusFilter === 'enrolled'
+                statusFilter === 'enrolled'
                   ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
                   : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border-emerald-200'
               }`}
@@ -443,8 +514,8 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>
                 {language === 'km'
-                  ? `មានក្នុងតារាងរួច (${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length} នាក់)`
-                  : `In Roster (${group2Children.filter(c => c.enrollmentStatus === 'enrolled').length})`}
+                  ? `មានក្នុងតារាងរួច (${baseList.filter(c => c.enrollmentStatus === 'enrolled').length} នាក់)`
+                  : `In Roster (${baseList.filter(c => c.enrollmentStatus === 'enrolled').length})`}
               </span>
             </button>
 

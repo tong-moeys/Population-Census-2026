@@ -9,10 +9,14 @@ import { HouseholdsView } from './components/HouseholdsView';
 import { AgePyramidView } from './components/AgePyramidView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { SchoolReportView } from './components/SchoolReportView';
+import { ComparisonTableView } from './components/ComparisonTableView';
 import { EnrollmentCampaignView } from './components/EnrollmentCampaignView';
+import { StudentInformationView } from './components/StudentInformationView';
 import { CitizenModal } from './components/CitizenModal';
 import { CitizenFormModal } from './components/CitizenFormModal';
 import { translations } from './utils/translations';
+import { StudentRecord } from './types/student';
+import { loadStudents, saveStudents } from './utils/studentData';
 import { 
   auth, 
   signInWithGoogle, 
@@ -20,6 +24,7 @@ import {
   syncCitizenToFirestore, 
   deleteCitizenFromFirestore, 
   batchSyncCitizens,
+  syncComparisonToFirestore,
   fetchCitizensFromFirestore,
   testConnection
 } from './firebase';
@@ -29,7 +34,13 @@ export const App: React.FC = () => {
   const initialData = useMemo(() => loadParsedCensus(), []);
   const [citizens, setCitizens] = useState<Citizen[]>(initialData.citizens);
   const [language, setLanguage] = useState<Language>('km');
-  const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<ViewTab>('comparison');
+
+
+  // MoEYS Standard Students State
+  const [students, setStudents] = useState<StudentRecord[]>(() => {
+    return loadStudents(initialData.citizens, initialData.households);
+  });
 
   // Firebase Auth & Cloud Sync States
   const [user, setUser] = useState<User | null>(null);
@@ -403,6 +414,54 @@ export const App: React.FC = () => {
     showToast(`${language === 'km' ? 'ស្ថានភាព៖ ' : 'Status: '}${label}`);
   }, [citizens, user, language]);
 
+  // Student CRUD & Import Handlers
+  const handleSaveStudent = useCallback((studentData: StudentRecord) => {
+    setStudents(prev => {
+      const idx = prev.findIndex(s => s.id === studentData.id);
+      let updated: StudentRecord[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = studentData;
+      } else {
+        updated = [studentData, ...prev];
+      }
+      saveStudents(updated);
+      return updated;
+    });
+    showToast(language === 'km' ? `បានរក្សាទុកព័ត៌មានសិស្ស ${studentData.name}` : `Saved student record ${studentData.name}`);
+  }, [language]);
+
+  const handleDeleteStudent = useCallback((studentId: string) => {
+    setStudents(prev => {
+      const updated = prev.filter(s => s.id !== studentId);
+      saveStudents(updated);
+      return updated;
+    });
+    showToast(language === 'km' ? 'បានលុបទិន្នន័យសិស្ស' : 'Student record removed');
+  }, [language]);
+
+  const handleImportStudents = useCallback((newStudents: StudentRecord[]) => {
+    if (newStudents.length === 0) return;
+    setStudents(prev => {
+      const updated = [...newStudents, ...prev];
+      saveStudents(updated);
+      return updated;
+    });
+    showToast(language === 'km' 
+      ? `បាននាំចូលកុមារ ${newStudents.length} នាក់ទៅក្នុងតារាងសិស្សដោយជោគជ័យ!` 
+      : `Successfully imported ${newStudents.length} students from census!`);
+  }, [language]);
+
+  const handleSaveComparisonToCloud = useCallback(async (comparisonRows: unknown[]) => {
+    try {
+      await syncComparisonToFirestore(comparisonRows);
+      showToast(language === 'km' ? 'បានរក្សាទុកតារាងប្រៀបធៀបទៅ Firebase!' : 'Saved comparison table to Firebase!');
+    } catch (err) {
+      console.warn('Comparison save note:', err);
+    }
+  }, [language]);
+
+
   // Export CSV
   const handleExportCSV = () => {
     const headers = ['ID', 'OriginalID', 'Name', 'Gender', 'DOB', 'Age', 'Relationship', 'Occupation', 'HouseholdID', 'School'];
@@ -503,6 +562,17 @@ export const App: React.FC = () => {
             user={user}
             onSignIn={handleSignIn}
             onSignOut={handleSignOut}
+            onNavigateTab={setCurrentTab}
+          />
+        )}
+
+        {currentTab === 'comparison' && (
+          <ComparisonTableView
+            citizens={citizens}
+            students={students}
+            language={language}
+            user={user}
+            onSaveToCloud={handleSaveComparisonToCloud}
           />
         )}
 
@@ -513,6 +583,18 @@ export const App: React.FC = () => {
             language={language}
             onUpdateCitizenStatus={handleUpdateChildStatus}
             onSelectCitizen={setSelectedCitizen}
+          />
+        )}
+
+        {currentTab === 'students' && (
+          <StudentInformationView
+            students={students}
+            citizens={citizens}
+            households={households}
+            language={language}
+            onSaveStudent={handleSaveStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onImportStudents={handleImportStudents}
           />
         )}
 
@@ -565,30 +647,34 @@ export const App: React.FC = () => {
       </main>
 
       {/* Citizen Profile Details Modal */}
-      <CitizenModal
-        citizen={selectedCitizen}
-        household={currentSelectedHousehold}
-        language={language}
-        onClose={() => setSelectedCitizen(null)}
-        onEdit={(c) => {
-          setCitizenToEdit(c);
-          setIsFormModalOpen(true);
-        }}
-        onDelete={handleDeleteCitizen}
-        onSelectRelative={(rel) => setSelectedCitizen(rel)}
-      />
+      {selectedCitizen && (
+        <CitizenModal
+          citizen={selectedCitizen}
+          household={currentSelectedHousehold}
+          language={language}
+          onClose={() => setSelectedCitizen(null)}
+          onEdit={(c) => {
+            setCitizenToEdit(c);
+            setIsFormModalOpen(true);
+          }}
+          onDelete={handleDeleteCitizen}
+          onSelectRelative={(rel) => setSelectedCitizen(rel)}
+        />
+      )}
 
       {/* Add / Edit Citizen Form Modal */}
-      <CitizenFormModal
-        isOpen={isFormModalOpen}
-        citizenToEdit={citizenToEdit}
-        language={language}
-        onClose={() => {
-          setIsFormModalOpen(false);
-          setCitizenToEdit(null);
-        }}
-        onSave={handleSaveCitizen}
-      />
+      {isFormModalOpen && (
+        <CitizenFormModal
+          isOpen={isFormModalOpen}
+          citizenToEdit={citizenToEdit}
+          language={language}
+          onClose={() => {
+            setIsFormModalOpen(false);
+            setCitizenToEdit(null);
+          }}
+          onSave={handleSaveCitizen}
+        />
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print">

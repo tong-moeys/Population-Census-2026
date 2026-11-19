@@ -10,6 +10,7 @@ import {
 import { 
   getFirestore, 
   doc, 
+  getDoc,
   getDocFromServer,
   collection,
   setDoc,
@@ -17,10 +18,14 @@ import {
   deleteDoc,
   writeBatch,
   query,
-  limit
+  limit,
+  setLogLevel
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Citizen } from './types/census';
+
+// Set Firestore log level to avoid transient WebChannel reconnection logs in console
+setLogLevel('error');
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -80,13 +85,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // CRITICAL CONSTRAINT: Validate Connection to Firestore on boot
 export async function testConnection(): Promise<boolean> {
   try {
-    await getDocFromServer(doc(db, 'citizens', '1'));
+    await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.info('Firestore is currently in offline mode or network is unreachable.');
+      console.info('Firestore client is operating in offline mode or network is connecting.');
     }
-    return true;
+    return false;
   }
 }
 
@@ -256,6 +261,49 @@ export async function fetchCitizensFromFirestore(): Promise<Citizen[]> {
     });
     return list;
   } catch (error) {
+    const isOffline = error instanceof Error && (error.message.includes('offline') || (error as { code?: string }).code === 'unavailable');
+    if (isOffline) {
+      console.info('Firestore is offline or unreachable. Using local storage data.');
+      return [];
+    }
     handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+// Sync comparison table data to Firestore
+export async function syncComparisonToFirestore(rows: unknown[], reportId = 'academic_year_2026_2027'): Promise<void> {
+  const path = `comparisonReports/${reportId}`;
+  try {
+    await setDoc(doc(db, 'comparisonReports', reportId), {
+      reportId,
+      academicYear: '2026-2027',
+      rowsJson: JSON.stringify(rows),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// Fetch comparison table data from Firestore
+export async function fetchComparisonFromFirestore(reportId = 'academic_year_2026_2027'): Promise<unknown[] | null> {
+  const path = `comparisonReports/${reportId}`;
+  try {
+    const snap = await getDoc(doc(db, 'comparisonReports', reportId));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data?.rowsJson) {
+        return JSON.parse(data.rowsJson);
+      }
+    }
+    return null;
+  } catch (error) {
+    const isOffline = error instanceof Error && (error.message.includes('offline') || (error as { code?: string }).code === 'unavailable');
+    if (isOffline) {
+      console.info('Firestore is offline or unreachable for comparison data.');
+      return null;
+    }
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
   }
 }

@@ -14,7 +14,10 @@ export function parseDateOfBirth(dobStr: string): Date | null {
   if (parts.length !== 3) return null;
   const day = parseInt(parts[0], 10);
   const monKey = parts[1].toLowerCase().trim();
-  const mon = monthMap[monKey];
+  const numMon = parseInt(monKey, 10);
+  const mon = monthMap[monKey] !== undefined
+    ? monthMap[monKey]
+    : (!isNaN(numMon) && numMon >= 1 && numMon <= 12 ? numMon - 1 : undefined);
   const yr = parseInt(parts[2], 10);
   if (isNaN(day) || mon === undefined || isNaN(yr)) return null;
   return new Date(yr, mon, day);
@@ -63,16 +66,21 @@ export function getEnrollmentChildren(
   const group1Children: EnrollmentChild[] = [];
   const group2Children: EnrollmentChild[] = [];
 
+  const adultRelationships = new Set([
+    'ប្តី', 'ប្រពន្ធ', 'ឪពុក', 'ម្តាយ', 'កូនប្រសារ', 'ម្ដាយក្មេក', 'ឪពុកក្មេក'
+  ]);
+
   for (const citizen of citizens) {
+    if (adultRelationships.has((citizen.relationship || '').trim())) continue;
+
     const months = calculateAgeInMonths(citizen.dob, citizen.age);
     const years = citizen.age || Math.floor(months / 12);
 
-    // Group 1: Children aged 3-5 years (pre-school mobilization)
-    // Age in years 3, 4, 5 OR months 36 to 71
-    const isGroup1 = (years >= 3 && years <= 5) || (months >= 36 && months <= 71);
-
     // Group 2: Children aged 70-82 months (official Grade 1 Primary school enrollment window)
     const isGroup2 = months >= 70 && months <= 82;
+
+    // Group 1: Children aged 3-5 years (pre-school mobilization, < 70 months)
+    const isGroup1 = !isGroup2 && ((years >= 3 && years <= 5) || (months >= 36 && months <= 69));
 
     if (!isGroup1 && !isGroup2) continue;
 

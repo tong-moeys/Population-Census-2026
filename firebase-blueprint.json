@@ -45,12 +45,51 @@
         "role": { "type": "string", "enum": ["admin", "teacher", "editor", "viewer"], "description": "Role level" }
       },
       "required": ["uid", "email"]
+    },
+    "student": {
+      "title": "Student",
+      "description": "MoEYS standard student information and EMIS/SIS profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "studentCode": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 150 },
+        "gender": { "type": "string", "enum": ["ប្រុស", "ស្រី"] },
+        "dob": { "type": "string", "maxLength": 50 },
+        "grade": { "type": "string", "maxLength": 100 },
+        "section": { "type": "string", "maxLength": 20 },
+        "academicYear": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "gender", "dob", "grade"]
+    },
+    "comparison_report": {
+      "title": "ComparisonReport",
+      "description": "Comparison report between village census data and enrolled students for ages 3-5",
+      "type": "object",
+      "properties": {
+        "reportId": { "type": "string", "maxLength": 100 },
+        "academicYear": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["reportId"]
+    },
+    "connection_test": {
+      "title": "ConnectionTest",
+      "description": "Firestore connection health check document",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "description": "Connection status" }
+      }
     }
   },
   "firestore": {
     "/citizens/{citizenId}": {
       "schema": { "$ref": "#/entities/citizen" },
       "description": "Individual census records of citizens residing in primary school catchment areas"
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/student" },
+      "description": "MoEYS standard student records for Rouk Primary School"
     },
     "/schools/{schoolId}": {
       "schema": { "$ref": "#/entities/school_statistic" },
@@ -59,6 +98,14 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/user_profile" },
       "description": "Profiles for registered administrators and teachers"
+    },
+    "/comparisonReports/{reportId}": {
+      "schema": { "$ref": "#/entities/comparison_report" },
+      "description": "Catchment village census vs enrolled students comparison records"
+    },
+    "/test/{testId}": {
+      "schema": { "$ref": "#/entities/connection_test" },
+      "description": "Health check document path for testing backend connection"
     }
   }
 }

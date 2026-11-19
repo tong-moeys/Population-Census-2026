@@ -18,7 +18,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { Citizen, Language, SchoolCatchmentReportRow } from '../types/census';
+import { Citizen, Language, SchoolCatchmentReportRow, ViewTab } from '../types/census';
 import { translations } from '../utils/translations';
 import { OfficialSignatureSection } from './OfficialSignatureSection';
 import { OfficialReportHeader } from './OfficialReportHeader';
@@ -30,6 +30,7 @@ interface SchoolReportViewProps {
   user?: User | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  onNavigateTab?: (tab: ViewTab) => void;
 }
 
 export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
@@ -37,7 +38,8 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
   language,
   user,
   onSignIn,
-  onSignOut
+  onSignOut,
+  onNavigateTab
 }) => {
   const t = translations[language];
   const [reportMode, setReportMode] = useState<'village' | 'school'>('school');
@@ -287,6 +289,17 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
                 ? `ទិន្នន័យជំរឿនបច្ចុប្បន្ន គឺចំណុះសាលាបឋមសិក្សារោគ (ប.សរោគ) ដែលមានភូមិចំណុះចំនួន២ គឺភូមិមុខឈ្នាង (${mukhChhnangCitizens.length.toLocaleString()} នាក់, ${mukhChhnangVillageRow.householdCount} ខ្នងផ្ទះ) និងភូមិរោគ (${roakCitizens.length.toLocaleString()} នាក់, ${roakVillageRow.householdCount} ខ្នងផ្ទះ) សរុប ${citizens.length.toLocaleString()} នាក់ (${grandTotalRow.householdCount} ខ្នងផ្ទះ)។ ចំណែកសាលា ៣ ទៀត (ប.សស្ពានស្រែង, ប.សមុខឈ្នាង, ប.សពង្រកណ្ដោល) មានភូមិចំណុះរបស់សាលារួចហើយ នឹងត្រូវបញ្ចូលពេលក្រោយធ្វើជំរឿនតាមភូមិចំណុះរួច។`
                 : `Current census data belongs to Rouk Primary School catchment, with 2 feeder villages: Mukh Chhnang (${mukhChhnangCitizens.length} residents, ${mukhChhnangVillageRow.householdCount} HH) and Roak (${roakCitizens.length} residents, ${roakVillageRow.householdCount} HH), totaling ${citizens.length} residents (${grandTotalRow.householdCount} HH). Other cluster schools will be populated after their feeder village census is conducted.`}
             </p>
+            {onNavigateTab && (
+              <div className="pt-2">
+                <button
+                  onClick={() => onNavigateTab('comparison')}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-md transition active:scale-95"
+                >
+                  <TableIcon className="w-4 h-4 text-slate-950" />
+                  <span>{language === 'km' ? 'បើកតារាងប្រៀបធៀប និងបញ្ចូលទិន្នន័យកុមារចូលរៀន (៣-៥ ឆ្នាំ)' : 'Open Comparison Table & Data Entry (Age 3-5)'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Official Connected Profile (Replaces CSV & Print buttons on the right) */}

@@ -18,7 +18,9 @@ import {
   LogOut,
   Sparkles,
   Loader2,
-  Baby
+  Baby,
+  GraduationCap,
+  FileSpreadsheet
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Language, ViewTab } from '../types/census';
@@ -247,6 +249,22 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
+          {/* Comparison Table Tab (Census vs Enrolled Students with direct input) */}
+          <button
+            onClick={() => onTabChange('comparison')}
+            className={`flex items-center gap-2 px-3.5 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              currentTab === 'comparison'
+                ? 'bg-amber-50 text-amber-900 border-b-2 border-amber-600 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4 text-amber-600" />
+            <span>{t.comparisonTable}</span>
+            <span className="px-1.5 py-0.5 text-[10px] bg-amber-100 text-amber-900 rounded-full font-bold">
+              {language === 'km' ? '៣-៥ ឆ្នាំ' : '3-5 Yrs'}
+            </span>
+          </button>
+
           {/* Student Enrollment Lists Tab (Group 1: 3-5 yrs, Group 2: 70-82 mos) */}
           <button
             onClick={() => onTabChange('enrollment')}
@@ -260,6 +278,22 @@ export const Header: React.FC<HeaderProps> = ({
             <span>{t.enrollmentCampaign}</span>
             <span className="px-1.5 py-0.5 text-[10px] bg-emerald-100 text-emerald-900 rounded-full font-bold">
               {language === 'km' ? '២ ក្រុម' : '2 Groups'}
+            </span>
+          </button>
+
+          {/* Student Information Tab (MoEYS Standard EMIS Table) */}
+          <button
+            onClick={() => onTabChange('students')}
+            className={`flex items-center gap-2 px-3.5 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              currentTab === 'students'
+                ? 'bg-indigo-50 text-indigo-800 border-b-2 border-indigo-600 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4 text-indigo-600" />
+            <span>{t.students}</span>
+            <span className="px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-900 rounded-full font-bold">
+              {language === 'km' ? 'EMIS' : 'MoEYS'}
             </span>
           </button>
 

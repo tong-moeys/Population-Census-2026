@@ -18,8 +18,6 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
   onClose,
   onSave
 }) => {
-  if (!isOpen) return null;
-
   const t = translations[language];
 
   const [name, setName] = useState('');
@@ -79,6 +77,8 @@ export const CitizenFormModal: React.FC<CitizenFormModalProps> = ({
 
   const relationshipOptions = ['ប្តី', 'ប្រពន្ធ', 'កូន', 'ម្តាយ', 'ឪពុក', 'ចៅ', 'កូនប្រសារ', 'ម្ដាយក្មេក', 'ផ្សេងៗ'];
   const occupationOptions = ['កសិករ', 'សិស្ស', 'គ្រូបង្រៀន', 'គ្រូពេទ្យ', 'ជរា', 'ក្នុងបន្ទុក', 'មេភូមិ', 'ប៉ូលិស', 'បុគ្គលិកធនាគារ', 'ជំនួយការឃុំ', 'វិស្វករ', 'ផ្សេងៗ'];
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">

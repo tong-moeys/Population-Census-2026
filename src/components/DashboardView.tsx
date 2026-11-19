@@ -72,6 +72,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
+              onClick={() => onNavigateTab('students')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95"
+            >
+              <GraduationCap className="w-4 h-4 text-white" />
+              <span>{language === 'km' ? 'ព័ត៌មានលម្អិតសិស្ស (EMIS)' : 'Student Records (EMIS)'}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => onNavigateTab('school-report')}
               className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs sm:text-sm rounded-xl shadow-md transition active:scale-95"
             >
@@ -266,8 +274,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
             {language === 'km'
-              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ)៖ ១១២ នាក់ (សម្រាប់ថ្នាក់មត្តេយ្យសិក្សា) • ក្រុម២ (អាយុ ៧០-៨២ខែ)៖ កុមារគ្រប់អាយុត្រូវចូលរៀនថ្នាក់ទី១ បឋមសិក្សា ក្នុងភូមិមុខឈ្នាង និងភូមិរោគ។'
-              : '• Group 1 (Age 3-5 yrs): 112 children (Pre-school) • Group 2 (Age 70-82 mos): Official Grade 1 Primary Entry across both villages.'}
+              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ មត្តេយ្យសិក្សា)៖ ១០៦ នាក់ (មិនទាន់ចុះឈ្មោះ ៦៩ នាក់) • ក្រុម២ (អាយុ ៧០-៨២ខែ ថ្នាក់ទី១)៖ ៤៣ នាក់ (មិនទាន់ចុះឈ្មោះ ១៤ នាក់)។'
+              : '• Group 1 (Age 3-5 yrs Pre-school): 106 children (69 not enrolled) • Group 2 (Age 70-82 mos Grade 1): 43 children (14 not enrolled).'}
           </p>
         </div>
 

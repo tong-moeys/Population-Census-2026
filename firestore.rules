@@ -83,12 +83,29 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(schoolId);
     }
 
+    // Students Collection - MoEYS student profiles
+    match /students/{studentId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() && isValidId(studentId);
+    }
+
     // User Profiles
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Comparison Reports - Census vs Enrolled comparison
+    match /comparisonReports/{reportId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn() && isValidId(reportId);
+    }
+
+    // Health / Connection Test
+    match /test/{testId} {
+      allow read: if true;
     }
   }
 }

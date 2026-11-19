@@ -135,5 +135,6 @@ export interface EnrollmentGroupStats {
   totalPending: number;
 }
 
-export type ViewTab = 'dashboard' | 'school-report' | 'enrollment' | 'citizens' | 'households' | 'pyramid' | 'analytics';
+export type ViewTab = 'dashboard' | 'school-report' | 'comparison' | 'enrollment' | 'students' | 'citizens' | 'households' | 'pyramid' | 'analytics';
 export type Language = 'km' | 'en';
+
