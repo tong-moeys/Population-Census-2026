@@ -222,14 +222,31 @@ export function saveStudents(students: StudentRecord[]): void {
 }
 
 /**
+ * Determines the default MoEYS grade level for a census citizen based on exact age/months
+ */
+export function getDefaultGradeForCitizen(citizen: Citizen): StudentGrade {
+  const months = calculateAgeInMonths(citizen.dob, citizen.age);
+  if (citizen.age >= 11) return 'ថ្នាក់ទី៦';
+  if (citizen.age === 10) return 'ថ្នាក់ទី៥';
+  if (citizen.age === 9) return 'ថ្នាក់ទី៤';
+  if (citizen.age === 8) return 'ថ្នាក់ទី៣';
+  if (citizen.age === 7) return 'ថ្នាក់ទី២';
+  if (citizen.age === 6 || (months >= 70 && months <= 82)) return 'ថ្នាក់ទី១';
+  if (months >= 60 || citizen.age === 5) return 'មត្តេយ្យកម្រិតខ្ពស់';
+  if (months >= 48 || citizen.age === 4) return 'មត្តេយ្យកម្រិតមធ្យម';
+  return 'មត្តេយ្យកម្រិតទាប';
+}
+
+/**
  * Creates a StudentRecord from a Census Citizen directly (for 1-click enrollment)
  */
 export function createStudentFromCitizen(
   citizen: Citizen, 
   households: Household[], 
-  grade: StudentGrade = 'ថ្នាក់ទី១',
+  grade?: StudentGrade,
   section: string = 'ក'
 ): StudentRecord {
+  const resolvedGrade: StudentGrade = grade || getDefaultGradeForCitizen(citizen);
   const village = citizen.village || 'រោគ';
   const hhKey = `${village}_${citizen.householdCode || citizen.householdId}`;
   const hh = households.find(h => `${h.village || 'រោគ'}_${h.householdCode || h.id}` === hhKey);
@@ -273,7 +290,7 @@ export function createStudentFromCitizen(
     age: citizen.age,
     ageMonths: months,
     academicYear: '២០២៥-២០២៦',
-    grade,
+    grade: resolvedGrade,
     section,
     previousGrade: 'គ្មាន (មកពីជំរឿនប្រជាជន)',
     enrollmentDate: new Date().toLocaleDateString('en-GB'),

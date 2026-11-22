@@ -23,16 +23,28 @@ import {
   FileSpreadsheet,
   SlidersHorizontal,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  CheckCircle2,
+  CheckSquare,
+  Calendar
 } from 'lucide-react';
 import { StudentRecord, StudentGrade, EyeCheckResult, PoorCardStatus } from '../types/student';
 import { Citizen, Household, Language } from '../types/census';
 import { translations, translateGender } from '../utils/translations';
 import { exportStudentsToCSV } from '../utils/studentData';
+import { calculateAgeInMonths } from '../utils/enrollmentUtils';
+import {
+  classifyCitizenVillage,
+  classifyStudentVillage,
+  getStudentAgeYears,
+  isActiveStudent
+} from '../utils/comparisonData';
 import { StudentProfileModal } from './StudentProfileModal';
 import { StudentFormModal } from './StudentFormModal';
 import { StudentImportModal } from './StudentImportModal';
 import { OfficialSignatureSection } from './OfficialSignatureSection';
+
+type StudentAgeFilter = 'all' | '0-2' | 'group2' | '12+' | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
 
 interface StudentInformationViewProps {
   students: StudentRecord[];
@@ -42,6 +54,7 @@ interface StudentInformationViewProps {
   onSaveStudent: (student: StudentRecord) => void;
   onDeleteStudent: (studentId: string) => void;
   onImportStudents: (newStudents: StudentRecord[]) => void;
+  onBatchUpdateStudents?: (studentIds: string[], patch: Partial<StudentRecord>) => void;
 }
 
 export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
@@ -51,7 +64,8 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
   language,
   onSaveStudent,
   onDeleteStudent,
-  onImportStudents
+  onImportStudents,
+  onBatchUpdateStudents
 }) => {
   const t = translations[language];
 
@@ -79,21 +93,39 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
   const [poorCardFilter, setPoorCardFilter] = useState<'all' | PoorCardStatus>('all');
   const [eyeFilter, setEyeFilter] = useState<'all' | EyeCheckResult>('all');
   const [sectionFilter, setSectionFilter] = useState<'all' | string>('all');
-  const [ageFilter, setAgeFilter] = useState<'all' | 3 | 4 | 5 | 6 | 7>('all');
+  const [ageFilter, setAgeFilter] = useState<StudentAgeFilter>('all');
+
+  // Batch tick selection state for students table
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [batchTargetGrade, setBatchTargetGrade] = useState<StudentGrade>('ថ្នាក់ទី១');
 
   // Sorting
-  const [sortField, setSortField] = useState<'code' | 'name' | 'grade' | 'age'>('grade');
+  const [sortField, setSortField] = useState<'code' | 'name' | 'grade' | 'age' | 'household'>('grade');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Pagination & Page Size
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number | 'all'>(50);
 
+  const matchesAgeFilter = (student: StudentRecord, filter: StudentAgeFilter): boolean => {
+    if (filter === 'all') return true;
+    const ageYrs = getStudentAgeYears(student);
+    if (filter === '0-2') return ageYrs >= 0 && ageYrs <= 2;
+    if (filter === '12+') return ageYrs >= 12;
+    if (filter === 'group2') {
+      const mos = (typeof student.ageMonths === 'number' && student.ageMonths > 0)
+        ? student.ageMonths
+        : calculateAgeInMonths(student.dob, ageYrs);
+      return mos >= 70 && mos <= 82;
+    }
+    return ageYrs === filter;
+  };
+
   // Filtered Students
   const filteredStudents = useMemo(() => {
     return students.filter(student => {
-      // Age filter (3, 4, 5, 6, 7 years)
-      if (ageFilter !== 'all' && student.age !== ageFilter) {
+      // Exact age filter (0-2, 3..11, 12+, group2)
+      if (!matchesAgeFilter(student, ageFilter)) {
         return false;
       }
 
@@ -105,8 +137,11 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
       }
 
       // Village filter
-      if (villageFilter !== 'all' && student.currentVillage !== villageFilter) {
-        return false;
+      if (villageFilter !== 'all') {
+        const vCat = classifyStudentVillage(student);
+        if (villageFilter === 'រោគ' && vCat !== 'roak') return false;
+        if (villageFilter === 'មុខឈ្នាង' && vCat !== 'mukh_chhnang') return false;
+        if (villageFilter === 'outside' && vCat !== 'outside') return false;
       }
 
       // Gender filter
@@ -148,10 +183,15 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
       if (sortField === 'grade') {
         const gradeRank = (g: string) => {
           if (g === 'ថ្នាក់ទី១') return 1;
-          if (g.includes('កម្រិតខ្ពស់')) return 2;
-          if (g.includes('កម្រិតមធ្យម')) return 3;
-          if (g.includes('កម្រិតទាប')) return 4;
-          return 5;
+          if (g === 'ថ្នាក់ទី២') return 2;
+          if (g === 'ថ្នាក់ទី៣') return 3;
+          if (g === 'ថ្នាក់ទី៤') return 4;
+          if (g === 'ថ្នាក់ទី៥') return 5;
+          if (g === 'ថ្នាក់ទី៦') return 6;
+          if (g.includes('កម្រិតខ្ពស់')) return 7;
+          if (g.includes('កម្រិតមធ្យម')) return 8;
+          if (g.includes('កម្រិតទាប')) return 9;
+          return 10;
         };
         const rankDiff = gradeRank(a.grade) - gradeRank(b.grade);
         if (rankDiff !== 0) return sortOrder === 'asc' ? rankDiff : -rankDiff;
@@ -164,28 +204,107 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
         return sortOrder === 'asc' ? a.name.localeCompare(b.name, 'km') : b.name.localeCompare(a.name, 'km');
       }
       if (sortField === 'age') {
-        return sortOrder === 'asc' ? a.age - b.age : b.age - a.age;
+        const diff = getStudentAgeYears(a) - getStudentAgeYears(b);
+        if (diff !== 0) return sortOrder === 'asc' ? diff : -diff;
+        return a.name.localeCompare(b.name, 'km');
+      }
+      if (sortField === 'household') {
+        const hDiff = String(a.householdCode || '').localeCompare(String(b.householdCode || ''), undefined, { numeric: true, sensitivity: 'base' });
+        return sortOrder === 'asc' ? hDiff : -hDiff;
       }
       return 0;
     });
   }, [students, ageFilter, gradeFilter, villageFilter, genderFilter, poorCardFilter, eyeFilter, sectionFilter, searchTerm, sortField, sortOrder]);
 
-  // Live student counts by exact age 3, 4, 5, 6, 7
+  // Live student counts by exact age 3..11 and 12+
   const studentAgeCounts = useMemo(() => {
     const context = students.filter(student => {
-      if (villageFilter !== 'all' && student.currentVillage !== villageFilter) return false;
+      if (villageFilter !== 'all') {
+        const vCat = classifyStudentVillage(student);
+        if (villageFilter === 'រោគ' && vCat !== 'roak') return false;
+        if (villageFilter === 'មុខឈ្នាង' && vCat !== 'mukh_chhnang') return false;
+        if (villageFilter === 'outside' && vCat !== 'outside') return false;
+      }
       if (genderFilter !== 'all' && student.gender !== genderFilter) return false;
       return true;
     });
-    return ([3, 4, 5, 6, 7] as const).map(age => {
-      const list = context.filter(s => s.age === age);
+    const buckets: { key: StudentAgeFilter; labelKm: string; labelEn: string }[] = [
+      { key: 3, labelKm: '៣ ឆ្នាំ', labelEn: '3y' },
+      { key: 4, labelKm: '៤ ឆ្នាំ', labelEn: '4y' },
+      { key: 5, labelKm: '៥ ឆ្នាំ', labelEn: '5y' },
+      { key: 6, labelKm: '៦ ឆ្នាំ', labelEn: '6y' },
+      { key: 'group2', labelKm: 'ក្រុម២', labelEn: 'G2' },
+      { key: 7, labelKm: '៧ ឆ្នាំ', labelEn: '7y' },
+      { key: 8, labelKm: '៨ ឆ្នាំ', labelEn: '8y' },
+      { key: 9, labelKm: '៩ ឆ្នាំ', labelEn: '9y' },
+      { key: 10, labelKm: '១០ ឆ្នាំ', labelEn: '10y' },
+      { key: 11, labelKm: '១១ ឆ្នាំ', labelEn: '11y' },
+      { key: '12+', labelKm: '១២+ ឆ្នាំ', labelEn: '12+y' }
+    ];
+    return buckets.map(b => {
+      const list = context.filter(s => matchesAgeFilter(s, b.key));
       return {
-        age,
+        ...b,
         total: list.length,
         female: list.filter(s => s.gender === 'ស្រី').length
       };
     });
   }, [students, villageFilter, genderFilter]);
+
+  // Horizontal village breakdown across exact ages (3..11, 12+) vs Census
+  const villageAgeBreakdown = useMemo(() => {
+    const active = students.filter(isActiveStudent).filter(s =>
+      genderFilter === 'all' ? true : s.gender === genderFilter
+    );
+    const activeCitizens = citizens.filter(c =>
+      genderFilter === 'all' ? true : c.gender === genderFilter
+    );
+
+    const ageCols: {
+      key: string;
+      label: string;
+      filterAge: StudentAgeFilter;
+      matchS: (s: StudentRecord) => boolean;
+      matchC: (c: Citizen) => boolean;
+    }[] = [
+      { key: '3', label: '៣ ឆ្នាំ', filterAge: 3, matchS: (s) => getStudentAgeYears(s) === 3, matchC: (c) => c.age === 3 },
+      { key: '4', label: '៤ ឆ្នាំ', filterAge: 4, matchS: (s) => getStudentAgeYears(s) === 4, matchC: (c) => c.age === 4 },
+      { key: '5', label: '៥ ឆ្នាំ', filterAge: 5, matchS: (s) => getStudentAgeYears(s) === 5, matchC: (c) => c.age === 5 },
+      { key: '6', label: '៦ ឆ្នាំ', filterAge: 6, matchS: (s) => getStudentAgeYears(s) === 6, matchC: (c) => c.age === 6 },
+      { key: '7', label: '៧ ឆ្នាំ', filterAge: 7, matchS: (s) => getStudentAgeYears(s) === 7, matchC: (c) => c.age === 7 },
+      { key: '8', label: '៨ ឆ្នាំ', filterAge: 8, matchS: (s) => getStudentAgeYears(s) === 8, matchC: (c) => c.age === 8 },
+      { key: '9', label: '៩ ឆ្នាំ', filterAge: 9, matchS: (s) => getStudentAgeYears(s) === 9, matchC: (c) => c.age === 9 },
+      { key: '10', label: '១០ ឆ្នាំ', filterAge: 10, matchS: (s) => getStudentAgeYears(s) === 10, matchC: (c) => c.age === 10 },
+      { key: '11', label: '១១ ឆ្នាំ', filterAge: 11, matchS: (s) => getStudentAgeYears(s) === 11, matchC: (c) => c.age === 11 },
+      { key: '12+', label: '១២+ ឆ្នាំ', filterAge: '12+', matchS: (s) => getStudentAgeYears(s) >= 12, matchC: (c) => c.age >= 12 && c.age <= 18 }
+    ];
+
+    const villageRowsDef = [
+      { id: 'roak' as const, filterVal: 'រោគ', label: 'ភូមិរោគ', dot: 'bg-blue-600' },
+      { id: 'mukh_chhnang' as const, filterVal: 'មុខឈ្នាង', label: 'ភូមិមុខឈ្នាង', dot: 'bg-amber-500' },
+      { id: 'outside' as const, filterVal: 'outside', label: 'មកពីភូមិផ្សេង (ចំណូល)', dot: 'bg-purple-600' }
+    ];
+
+    const rows = villageRowsDef.map(v => {
+      const vStudents = active.filter(s => classifyStudentVillage(s) === v.id);
+      const vCitizens = v.id === 'outside' ? [] : activeCitizens.filter(c => classifyCitizenVillage(c) === v.id);
+      const cells = ageCols.map(col => {
+        const sList = vStudents.filter(col.matchS);
+        const cList = vCitizens.filter(col.matchC);
+        const enrolled = sList.length;
+        const female = sList.filter(s => s.gender === 'ស្រី').length;
+        const census = cList.length;
+        const moved = cList.filter(c => c.enrollmentStatus === 'moved').length;
+        const rate = census > 0 ? Math.round((enrolled / census) * 100) : 0;
+        return { key: col.key, filterAge: col.filterAge, enrolled, female, census, moved, rate };
+      });
+      const totalEnrolled = vStudents.length;
+      const totalFemale = vStudents.filter(s => s.gender === 'ស្រី').length;
+      return { ...v, cells, totalEnrolled, totalFemale };
+    });
+
+    return { ageCols, rows };
+  }, [students, citizens, genderFilter]);
 
   // Pagination Slice
   const effectivePageSize = pageSize === 'all' ? filteredStudents.length || 1 : pageSize;
@@ -229,6 +348,54 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
     exportStudentsToCSV(filteredStudents, 'ប.សរោគ');
   };
 
+  const handleToggleSort = (field: 'code' | 'name' | 'grade' | 'age' | 'household') => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const toggleSelectStudent = (studentId: string) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  };
+
+  const toggleSelectPageStudents = () => {
+    const pageIds = paginatedStudents.map(s => s.id);
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedStudentIds.has(id));
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        pageIds.forEach(id => next.delete(id));
+      } else {
+        pageIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const applyBatchPatch = (patch: Partial<StudentRecord>) => {
+    const ids = Array.from(selectedStudentIds);
+    if (ids.length === 0) return;
+    if (onBatchUpdateStudents) {
+      onBatchUpdateStudents(ids, patch);
+    } else {
+      for (const s of students) {
+        if (selectedStudentIds.has(s.id)) {
+          onSaveStudent({ ...s, ...patch, updatedAt: new Date().toISOString() });
+        }
+      }
+    }
+    setSelectedStudentIds(new Set());
+  };
+
   return (
     <div className="space-y-6 print:space-y-3">
       {/* Top Banner & Title */}
@@ -262,7 +429,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-900/30 transition"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>{language === 'km' ? 'នាំចូលពីជំរឿន' : 'Import from Census'}</span>
+              <span>{language === 'km' ? 'ផ្ទៀងផ្ទាត់ & បញ្ជូនចូលរៀន (តាមអាយុ)' : 'Verify & Enroll by Age'}</span>
             </button>
 
             <button
@@ -421,6 +588,36 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             />
           </div>
 
+          {/* Exact Age Filter Dropdown */}
+          <select
+            value={String(ageFilter)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'all' || v === '0-2' || v === 'group2' || v === '12+') {
+                setAgeFilter(v);
+              } else {
+                setAgeFilter(Number(v) as StudentAgeFilter);
+              }
+              setCurrentPage(1);
+            }}
+            className="px-2.5 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-950 font-bold"
+            aria-label="Filter by Age"
+          >
+            <option value="all">អាយុទាំងអស់ (All Ages)</option>
+            <option value="0-2">អាយុ ០-២ ឆ្នាំ</option>
+            <option value="3">អាយុ ៣ ឆ្នាំ</option>
+            <option value="4">អាយុ ៤ ឆ្នាំ</option>
+            <option value="5">អាយុ ៥ ឆ្នាំ</option>
+            <option value="group2">ក្រុម២ (៧០-៨២ ខែ)</option>
+            <option value="6">អាយុ ៦ ឆ្នាំ</option>
+            <option value="7">អាយុ ៧ ឆ្នាំ</option>
+            <option value="8">អាយុ ៨ ឆ្នាំ</option>
+            <option value="9">អាយុ ៩ ឆ្នាំ</option>
+            <option value="10">អាយុ ១០ ឆ្នាំ</option>
+            <option value="11">អាយុ ១១ ឆ្នាំ</option>
+            <option value="12+">អាយុ ១២+ ឆ្នាំ</option>
+          </select>
+
           {/* Grade Filter */}
           <select
             value={gradeFilter}
@@ -431,11 +628,16 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium"
           >
             <option value="all">កម្រិតថ្នាក់ទាំងអស់ (All Grades)</option>
-            <option value="grade1">ថ្នាក់ទី១ (Grade 1)</option>
             <option value="preschool">ថ្នាក់មត្តេយ្យទាំងអស់</option>
-            <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យកម្រិតខ្ពស់ (៥ ឆ្នាំ)</option>
-            <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យកម្រិតមធ្យម (៤ ឆ្នាំ)</option>
             <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យកម្រិតទាប (៣ ឆ្នាំ)</option>
+            <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យកម្រិតមធ្យម (៤ ឆ្នាំ)</option>
+            <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យកម្រិតខ្ពស់ (៥ ឆ្នាំ)</option>
+            <option value="grade1">ថ្នាក់ទី១ (Grade 1)</option>
+            <option value="ថ្នាក់ទី២">ថ្នាក់ទី២ (Grade 2)</option>
+            <option value="ថ្នាក់ទី៣">ថ្នាក់ទី៣ (Grade 3)</option>
+            <option value="ថ្នាក់ទី៤">ថ្នាក់ទី៤ (Grade 4)</option>
+            <option value="ថ្នាក់ទី៥">ថ្នាក់ទី៥ (Grade 5)</option>
+            <option value="ថ្នាក់ទី៦">ថ្នាក់ទី៦ (Grade 6)</option>
           </select>
 
           {/* Section Filter */}
@@ -465,6 +667,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             <option value="all">ភូមិទាំងអស់</option>
             <option value="រោគ">ភូមិរោគ</option>
             <option value="មុខឈ្នាង">ភូមិមុខឈ្នាង</option>
+            <option value="outside">មកពីភូមិផ្សេង (ចំណូល)</option>
           </select>
 
           {/* Gender Filter */}
@@ -480,6 +683,29 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             <option value="ប្រុស">{t.males}</option>
             <option value="ស្រី">{t.females}</option>
           </select>
+
+          {/* Sort Field & Order */}
+          <div className="inline-flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={`${sortField}_${sortOrder}`}
+              onChange={(e) => {
+                const [f, o] = e.target.value.split('_') as ['code' | 'name' | 'grade' | 'age' | 'household', 'asc' | 'desc'];
+                setSortField(f);
+                setSortOrder(o);
+                setCurrentPage(1);
+              }}
+              className="bg-transparent font-medium outline-none"
+              aria-label="Sort students"
+            >
+              <option value="grade_asc">តម្រៀប៖ តាមថ្នាក់រៀន</option>
+              <option value="age_asc">តម្រៀប៖ អាយុ (តិច → ច្រើន)</option>
+              <option value="age_desc">តម្រៀប៖ អាយុ (ច្រើន → តិច)</option>
+              <option value="name_asc">តម្រៀប៖ ឈ្មោះ (ក-អ)</option>
+              <option value="code_asc">តម្រៀប៖ អត្តលេខ</option>
+              <option value="household_asc">តម្រៀប៖ ខ្នងផ្ទះ</option>
+            </select>
+          </div>
 
           {/* Eye Check Filter */}
           <select
@@ -511,6 +737,21 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             <option value="idpoor2">ក្រ២ (Poor)</option>
             <option value="vulnerable">ងាយរងគ្រោះ</option>
           </select>
+
+          {/* Quick CTA to open Tick-to-Enroll Census Verification Modal pre-filtered by active Age */}
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-2xs transition"
+            title="ហៅឈ្មោះកុមារពីជំរឿនតាមអាយុ ហើយ Tick បញ្ជូនទៅចូលរៀន"
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span>
+              {ageFilter !== 'all'
+                ? `ផ្ទៀងផ្ទាត់ & Tick កុមារជំរឿន (${ageFilter === 'group2' ? 'ក្រុម២' : ageFilter === '12+' ? '១២+ ឆ្នាំ' : ageFilter === '0-2' ? '០-២ ឆ្នាំ' : `${ageFilter} ឆ្នាំ`})`
+                : 'ផ្ទៀងផ្ទាត់ & Tick កុមារជំរឿនចូលរៀន'}
+            </span>
+          </button>
         </div>
 
         {/* Clear filters if active */}
@@ -533,10 +774,11 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
           </button>
         )}
 
-        {/* Exact Age Quick Filter & Count Pills (3, 4, 5, 6, 7 years) */}
-        <div className="w-full pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold text-slate-700 mr-1">
-            {language === 'km' ? 'តម្រង & រាប់អាយុ៖' : 'Age Filter & Count:'}
+        {/* Exact Age Quick Filter & Count Pills (3..11, 12+, Group 2) */}
+        <div className="w-full pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 mr-1">
+            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{language === 'km' ? 'តម្រង & រាប់អាយុ៖' : 'Age Filter & Count:'}</span>
           </span>
           <button
             type="button"
@@ -550,13 +792,13 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             {language === 'km' ? `ទាំងអស់ (${students.length})` : `All (${students.length})`}
           </button>
           {studentAgeCounts.map(item => {
-            const isActive = ageFilter === item.age;
+            const isActive = ageFilter === item.key;
             return (
               <button
-                key={item.age}
+                key={String(item.key)}
                 type="button"
                 onClick={() => {
-                  setAgeFilter(isActive ? 'all' : item.age);
+                  setAgeFilter(isActive ? 'all' : item.key);
                   setCurrentPage(1);
                 }}
                 className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition flex items-center gap-1 ${
@@ -565,7 +807,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
                     : 'bg-indigo-50/70 text-indigo-950 border-indigo-200 hover:bg-indigo-100'
                 }`}
               >
-                <span>{language === 'km' ? `${item.age} ឆ្នាំ` : `${item.age}y`}</span>
+                <span>{language === 'km' ? item.labelKm : item.labelEn}</span>
                 <span className={`px-1 rounded text-[10px] font-black ${
                   isActive ? 'bg-white/20 text-white' : 'bg-white text-indigo-800 border border-indigo-200'
                 }`}>
@@ -582,6 +824,110 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
               ? `រកឃើញ៖ ${filteredStudents.length} នាក់ (ស្រី ${filteredStudents.filter(s => s.gender === 'ស្រី').length})`
               : `Found: ${filteredStudents.length} (F ${filteredStudents.filter(s => s.gender === 'ស្រី').length})`}
           </span>
+        </div>
+
+        {/* Horizontal Village Rows by Age (ជួរដេកភូមិ: ភូមិរោគ / ភូមិមុខឈ្នាង / មកពីភូមិផ្សេង) */}
+        <div className="w-full pt-2.5 border-t border-slate-100 overflow-x-auto">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[11px] font-bold text-slate-800">
+              {language === 'km'
+                ? 'ស្ថិតិប្រមូលតាមភូមិ (ជួរដេកភូមិ) ធៀបជំរឿន — ចុចលើតួលេខដើម្បីត្រង៖'
+                : 'Village Breakdown by Age vs Census (Click cell to filter):'}
+            </span>
+            <span className="text-[10px] text-slate-500">
+              {language === 'km' ? 'ទម្រង់៖ សិស្សរៀន / ជំរឿន (%)' : 'Format: Enrolled / Census (%)'}
+            </span>
+          </div>
+          <table className="w-full text-[10.5px] text-center border-collapse font-khmer border border-slate-200 rounded-lg overflow-hidden">
+            <thead>
+              <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-bold">
+                <th className="py-1 px-2 text-left border-r border-slate-200 min-w-[140px]">ជួរដេកភូមិ</th>
+                {villageAgeBreakdown.ageCols.map(col => (
+                  <th
+                    key={col.key}
+                    className={`py-1 px-1.5 border-r border-slate-200 whitespace-nowrap ${
+                      col.filterAge && ageFilter === col.filterAge ? 'bg-indigo-100 text-indigo-950 font-black' : ''
+                    }`}
+                  >
+                    {col.label}
+                  </th>
+                ))}
+                <th className="py-1 px-2 bg-slate-200/70 font-black whitespace-nowrap">សរុបរៀន (ស្រី)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {villageAgeBreakdown.rows.map(vRow => {
+                if (vRow.id === 'outside' && vRow.totalEnrolled === 0) return null;
+                return (
+                  <tr key={vRow.id} className="hover:bg-slate-50">
+                    <td className="py-1 px-2 text-left border-r border-slate-200 font-bold text-slate-900 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVillageFilter(prev => prev === vRow.filterVal ? 'all' : vRow.filterVal);
+                          setCurrentPage(1);
+                        }}
+                        className="inline-flex items-center gap-1.5 hover:text-blue-700"
+                      >
+                        <span className={`w-2 h-2 rounded-full ${vRow.dot}`} />
+                        <span>{vRow.label}</span>
+                      </button>
+                    </td>
+                    {vRow.cells.map(cell => {
+                      const isColActive = cell.filterAge && ageFilter === cell.filterAge;
+                      const isCellActive = isColActive && villageFilter === vRow.filterVal;
+                      return (
+                        <td
+                          key={cell.key}
+                          onClick={() => {
+                            if (cell.filterAge) {
+                              setVillageFilter(vRow.filterVal);
+                              setAgeFilter(cell.filterAge);
+                              setCurrentPage(1);
+                            }
+                          }}
+                          className={`py-1 px-1 border-r border-slate-200 ${
+                            cell.filterAge ? 'cursor-pointer hover:bg-indigo-50' : ''
+                          } ${isCellActive ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-400' : isColActive ? 'bg-indigo-50/40' : ''}`}
+                        >
+                          <div className="font-bold text-slate-900">
+                            {cell.enrolled}
+                            {vRow.id !== 'outside' && (
+                              <span className="text-slate-400 font-normal">/{cell.census}</span>
+                            )}
+                          </div>
+                          {vRow.id === 'outside' ? (
+                            cell.enrolled > 0 && (
+                              <span className="inline-block px-1 rounded text-[9px] font-bold bg-purple-100 text-purple-900">
+                                +{cell.enrolled} ចំណូល
+                              </span>
+                            )
+                          ) : cell.census > 0 ? (
+                            <span className={`inline-block px-1 rounded text-[9px] font-bold ${
+                              cell.rate > 100
+                                ? 'bg-purple-100 text-purple-900'
+                                : cell.rate === 100
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : 'bg-rose-50 text-rose-800'
+                            }`}>
+                              {cell.rate}%{cell.moved > 0 ? ` • ចាក${cell.moved}` : ''}
+                            </span>
+                          ) : cell.enrolled > 0 ? (
+                            <span className="inline-block px-1 rounded text-[9px] font-bold bg-purple-100 text-purple-900">
+                              &gt;100%
+                            </span>
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                    <td className="py-1 px-2 bg-slate-50 font-black text-slate-900 whitespace-nowrap">
+                      {vRow.totalEnrolled} <span className="text-pink-700 font-bold">({vRow.totalFemale})</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -694,6 +1040,75 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
         </div>
       </div>
 
+      {/* Batch Verification Action Bar when rows are ticked */}
+      {selectedStudentIds.size > 0 && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs shadow-sm no-print">
+          <div className="flex items-center gap-2 font-bold text-emerald-950">
+            <CheckSquare className="w-4 h-4 text-emerald-700" />
+            <span>បាន Tick សិស្ស៖ <strong className="text-emerald-700 text-sm">{selectedStudentIds.size} នាក់</strong></span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => applyBatchPatch({ status: 'active' })}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 transition"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>បញ្ជាក់កំពុងរៀន</span>
+            </button>
+
+            <div className="inline-flex items-center gap-1 bg-white border border-emerald-300 rounded-lg px-2 py-1">
+              <select
+                value={batchTargetGrade}
+                onChange={(e) => setBatchTargetGrade(e.target.value as StudentGrade)}
+                className="bg-transparent font-bold text-slate-800 outline-none"
+              >
+                <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យទាប</option>
+                <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យមធ្យម</option>
+                <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យខ្ពស់</option>
+                <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
+                <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
+                <option value="ថ្នាក់ទី៣">ថ្នាក់ទី៣</option>
+                <option value="ថ្នាក់ទី៤">ថ្នាក់ទី៤</option>
+                <option value="ថ្នាក់ទី៥">ថ្នាក់ទី៥</option>
+                <option value="ថ្នាក់ទី៦">ថ្នាក់ទី៦</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => applyBatchPatch({ grade: batchTargetGrade, status: 'active' })}
+                className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              >
+                ប្តូរថ្នាក់
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => applyBatchPatch({ status: 'transferred_out' })}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold"
+            >
+              ផ្ទេរចេញ
+            </button>
+
+            <button
+              type="button"
+              onClick={() => applyBatchPatch({ status: 'dropped_out' })}
+              className="px-2.5 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 font-bold"
+            >
+              ឈប់រៀន
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedStudentIds(new Set())}
+              className="px-2.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-200 font-semibold"
+            >
+              បោះបង់
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Official MoEYS Student Information Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
         <div className="overflow-x-auto max-h-[78vh] overflow-y-auto print:overflow-visible print:max-h-none">
@@ -712,12 +1127,38 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
                   : 'text-[11px]'
             }`}>
               <tr>
+                <th className={`border-r border-slate-200 text-center w-7 no-print ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>
+                  <input
+                    type="checkbox"
+                    checked={paginatedStudents.length > 0 && paginatedStudents.every(s => selectedStudentIds.has(s.id))}
+                    onChange={toggleSelectPageStudents}
+                    title="Tick ទាំងអស់ក្នុងទំព័រនេះ"
+                    className="rounded text-emerald-600 cursor-pointer"
+                  />
+                </th>
                 <th className={`border-r border-slate-200 text-center w-8 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>ល.រ</th>
                 <th className={`border-r border-slate-200 w-20 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>អត្តលេខ</th>
-                <th className={`border-r border-slate-200 min-w-[110px] ${density === 'ultra-compact' ? 'py-1 px-1.5' : density === 'compact' ? 'py-1.5 px-2' : 'py-2.5 px-2.5'}`}>គោត្តនាម-នាម</th>
+                <th
+                  onClick={() => handleToggleSort('name')}
+                  className={`border-r border-slate-200 min-w-[110px] cursor-pointer hover:bg-slate-200/70 ${density === 'ultra-compact' ? 'py-1 px-1.5' : density === 'compact' ? 'py-1.5 px-2' : 'py-2.5 px-2.5'}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>គោត្តនាម-នាម</span>
+                    <ArrowUpDown className="w-2.5 h-2.5 text-slate-400" />
+                  </div>
+                </th>
                 <th className={`border-r border-slate-200 text-center w-10 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>ភេទ</th>
                 <th className={`border-r border-slate-200 text-center w-20 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>ថ្ងៃកំណើត</th>
-                <th className={`border-r border-slate-200 text-center w-9 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}>អាយុ</th>
+                <th
+                  onClick={() => handleToggleSort('age')}
+                  className={`border-r border-slate-200 text-center w-11 cursor-pointer hover:bg-indigo-100 ${density === 'ultra-compact' ? 'py-1 px-1' : density === 'compact' ? 'py-1.5 px-1.5' : 'py-2.5 px-2.5'}`}
+                  title="ចុចដើម្បីតម្រៀបតាមអាយុ"
+                >
+                  <div className="flex items-center justify-center gap-0.5">
+                    <span>អាយុ</span>
+                    <ArrowUpDown className="w-2.5 h-2.5 text-indigo-600" />
+                  </div>
+                </th>
                 <th className={`border-r border-slate-200 min-w-[85px] ${density === 'ultra-compact' ? 'py-1 px-1.5' : density === 'compact' ? 'py-1.5 px-2' : 'py-2.5 px-2.5'}`}>ថ្នាក់-បន្ទប់</th>
                 <th className={`border-r border-slate-200 min-w-[90px] ${density === 'ultra-compact' ? 'py-1 px-1.5' : density === 'compact' ? 'py-1.5 px-2' : 'py-2.5 px-2.5'}`}>ទីកន្លែងកំណើត</th>
                 <th className={`border-r border-slate-200 min-w-[85px] ${density === 'ultra-compact' ? 'py-1 px-1.5' : density === 'compact' ? 'py-1.5 px-2' : 'py-2.5 px-2.5'}`}>អាសយដ្ឋានបច្ចុប្បន្ន</th>
@@ -733,7 +1174,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             <tbody className="divide-y divide-slate-200 text-slate-800">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="text-center py-10 text-slate-400">
+                  <td colSpan={17} className="text-center py-10 text-slate-400">
                     {t.noResults}
                   </td>
                 </tr>
@@ -741,6 +1182,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
                 paginatedStudents.map((student, idx) => {
                   const globalIdx = (currentPage - 1) * effectivePageSize + idx + 1;
                   const isGrade1 = student.grade === 'ថ្នាក់ទី១';
+                  const isTicked = selectedStudentIds.has(student.id);
                   const cellPad = density === 'ultra-compact' 
                     ? 'py-0.5 px-1' 
                     : density === 'compact' 
@@ -751,9 +1193,23 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
                     <tr 
                       key={student.id} 
                       className={`hover:bg-blue-50/50 transition group ${
-                        isGrade1 ? 'bg-indigo-50/15' : 'bg-white'
+                        isTicked
+                          ? 'bg-emerald-50/70'
+                          : isGrade1
+                            ? 'bg-indigo-50/15'
+                            : 'bg-white'
                       }`}
                     >
+                      {/* Checkbox */}
+                      <td className={`${cellPad} border-r border-slate-200 text-center no-print`}>
+                        <input
+                          type="checkbox"
+                          checked={isTicked}
+                          onChange={() => toggleSelectStudent(student.id)}
+                          className="rounded text-emerald-600 cursor-pointer"
+                        />
+                      </td>
+
                       {/* No. */}
                       <td className={`${cellPad} border-r border-slate-200 text-center font-mono text-slate-500`}>
                         {globalIdx}
@@ -1019,7 +1475,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
         />
       )}
 
-      {/* Import from Census Modal */}
+      {/* Import / Verify from Census Modal */}
       {isImportModalOpen && (
         <StudentImportModal
           isOpen={isImportModalOpen}
@@ -1027,6 +1483,8 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
           households={households}
           existingStudents={students}
           language={language}
+          initialAgeFilter={ageFilter === 'all' ? undefined : String(ageFilter)}
+          initialVillageFilter={villageFilter === 'រោគ' || villageFilter === 'មុខឈ្នាង' ? villageFilter : undefined}
           onClose={() => setIsImportModalOpen(false)}
           onImportStudents={onImportStudents}
         />

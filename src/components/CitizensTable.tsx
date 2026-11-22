@@ -13,9 +13,13 @@ import {
   Building2,
   Calendar,
   X,
-  MapPin
+  MapPin,
+  UserPlus,
+  CheckCircle2,
+  CheckSquare
 } from 'lucide-react';
 import { Citizen, Language } from '../types/census';
+import { StudentGrade } from '../types/student';
 import { translations, translateOccupation, translateRole, translateGender } from '../utils/translations';
 
 interface CitizensTableProps {
@@ -25,6 +29,7 @@ interface CitizensTableProps {
   onEditCitizen: (citizen: Citizen) => void;
   onDeleteCitizen: (id: number) => void;
   onAddNewCitizen: () => void;
+  onEnrollCitizens?: (citizenIds: number[], targetGrade?: StudentGrade | 'auto', section?: string) => void;
   initialOccupationFilter?: string;
   initialGenderFilter?: string;
   onClearInitialFilters?: () => void;
@@ -40,6 +45,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
   onEditCitizen,
   onDeleteCitizen,
   onAddNewCitizen,
+  onEnrollCitizens,
   initialOccupationFilter,
   initialGenderFilter,
   onClearInitialFilters
@@ -53,6 +59,11 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
   const [villageFilter, setVillageFilter] = useState('all');
   const [ageRangeFilter, setAgeRangeFilter] = useState('all');
   const [householdFilter, setHouseholdFilter] = useState('');
+
+  // Tick selection for verifying & sending children to enroll
+  const [selectedCitizenIds, setSelectedCitizenIds] = useState<Set<number>>(new Set());
+  const [enrollTargetGrade, setEnrollTargetGrade] = useState<'auto' | StudentGrade>('auto');
+  const [enrollTargetSection, setEnrollTargetSection] = useState<string>('ក');
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>('id');
@@ -142,6 +153,11 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         if (ageRangeFilter === 'age_5' && c.age !== 5) return false;
         if (ageRangeFilter === 'age_6' && c.age !== 6) return false;
         if (ageRangeFilter === 'age_7' && c.age !== 7) return false;
+        if (ageRangeFilter === 'age_8' && c.age !== 8) return false;
+        if (ageRangeFilter === 'age_9' && c.age !== 9) return false;
+        if (ageRangeFilter === 'age_10' && c.age !== 10) return false;
+        if (ageRangeFilter === 'age_11' && c.age !== 11) return false;
+        if (ageRangeFilter === 'age_12_plus' && (c.age < 12 || c.age > 18)) return false;
         if (ageRangeFilter === 'age_3_7' && (c.age < 3 || c.age > 7)) return false;
         if (ageRangeFilter === 'child' && c.age >= 18) return false;
         if (ageRangeFilter === 'youth' && (c.age < 18 || c.age > 35)) return false;
@@ -173,7 +189,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
     });
   }, [citizens, searchTerm, genderFilter, occupationFilter, villageFilter, ageRangeFilter, householdFilter, sortField, sortOrder]);
 
-  // Live counts for ages 3, 4, 5, 6, 7 (respecting active village, gender, occupation, search, and household filters)
+  // Live counts for ages 3..11 and 12-18 (respecting active village, gender, occupation, search, and household filters)
   const ageQuickCounts = useMemo(() => {
     const base = citizens.filter(c => {
       const citizenVillage = c.village?.trim() || 'រោគ';
@@ -197,16 +213,27 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
       return true;
     });
 
-    const targetAges = [3, 4, 5, 6, 7] as const;
+    const targetAges = [3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
     const byAge = targetAges.map(age => {
       const matches = base.filter(c => c.age === age);
       return {
+        label: `${age} ឆ្នាំ`,
         age,
         key: `age_${age}`,
         total: matches.length,
         female: matches.filter(c => c.gender === 'ស្រី').length,
         male: matches.filter(c => c.gender === 'ប្រុស').length
       };
+    });
+
+    const age12Plus = base.filter(c => c.age >= 12 && c.age <= 18);
+    byAge.push({
+      label: '១២+ ឆ្នាំ',
+      age: 12 as unknown as (typeof targetAges)[number],
+      key: 'age_12_plus',
+      total: age12Plus.length,
+      female: age12Plus.filter(c => c.gender === 'ស្រី').length,
+      male: age12Plus.filter(c => c.gender === 'ប្រុស').length
     });
 
     const combined = base.filter(c => c.age >= 3 && c.age <= 7);
@@ -230,6 +257,35 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
     const start = (currentPage - 1) * pageSize;
     return filteredCitizens.slice(start, start + pageSize);
   }, [filteredCitizens, currentPage, pageSize]);
+
+  const toggleSelectCitizen = (id: number) => {
+    setSelectedCitizenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectPage = () => {
+    const pageIds = paginatedCitizens.map(c => c.id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedCitizenIds.has(id));
+    setSelectedCitizenIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach(id => next.delete(id));
+      } else {
+        pageIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBatchEnrollSelected = () => {
+    if (!onEnrollCitizens || selectedCitizenIds.size === 0) return;
+    onEnrollCitizens(Array.from(selectedCitizenIds), enrollTargetGrade, enrollTargetSection);
+    setSelectedCitizenIds(new Set());
+  };
 
   // Reset filters
   const handleResetFilters = () => {
@@ -281,7 +337,9 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
             </h2>
             <p className="text-[11px] text-slate-600">
               {villageFilter !== 'all' ? `ភូមិ ${villageFilter}` : 'ភូមិរោគ និង ភូមិមុខឈ្នាង'}
-              {ageRangeFilter.startsWith('age_') ? ` • ${ageRangeFilter === 'age_3_7' ? 'អាយុ ៣-៧ ឆ្នាំ' : `អាយុ ${ageRangeFilter.replace('age_', '')} ឆ្នាំ`}` : ''}
+              {ageRangeFilter.startsWith('age_')
+                ? ` • ${ageRangeFilter === 'age_3_7' ? 'អាយុ ៣-៧ ឆ្នាំ' : ageRangeFilter === 'age_12_plus' ? 'អាយុ ១២+ ឆ្នាំ' : `អាយុ ${ageRangeFilter.replace('age_', '')} ឆ្នាំ`}`
+                : ''}
             </p>
           </div>
           <div className="text-right text-xs font-bold text-slate-900">
@@ -400,11 +458,11 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
               className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none"
             >
               <option value="all">{t.filterAgeGroup}</option>
-              <option value="age_3">{language === 'km' ? `អាយុ ៣ ឆ្នាំ (${ageQuickCounts.byAge[0].total})` : `Age 3 (${ageQuickCounts.byAge[0].total})`}</option>
-              <option value="age_4">{language === 'km' ? `អាយុ ៤ ឆ្នាំ (${ageQuickCounts.byAge[1].total})` : `Age 4 (${ageQuickCounts.byAge[1].total})`}</option>
-              <option value="age_5">{language === 'km' ? `អាយុ ៥ ឆ្នាំ (${ageQuickCounts.byAge[2].total})` : `Age 5 (${ageQuickCounts.byAge[2].total})`}</option>
-              <option value="age_6">{language === 'km' ? `អាយុ ៦ ឆ្នាំ (${ageQuickCounts.byAge[3].total})` : `Age 6 (${ageQuickCounts.byAge[3].total})`}</option>
-              <option value="age_7">{language === 'km' ? `អាយុ ៧ ឆ្នាំ (${ageQuickCounts.byAge[4].total})` : `Age 7 (${ageQuickCounts.byAge[4].total})`}</option>
+              {ageQuickCounts.byAge.map(item => (
+                <option key={item.key} value={item.key}>
+                  {language === 'km' ? `អាយុ ${item.label} (${item.total})` : `Age ${item.age} (${item.total})`}
+                </option>
+              ))}
               <option value="age_3_7">{language === 'km' ? `អាយុ ៣-៧ ឆ្នាំ (${ageQuickCounts.combinedTotal})` : `Ages 3-7 (${ageQuickCounts.combinedTotal})`}</option>
               <option value="child">{language === 'km' ? 'កុមារ (< ១៨)' : 'Children (< 18)'}</option>
               <option value="youth">{language === 'km' ? 'យុវជន (១៨-៣៥)' : 'Youth (18-35)'}</option>
@@ -428,8 +486,8 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
           </div>
         </div>
 
-        {/* Exact Age Quick Filters & Live Counts (3, 4, 5, 6, 7 years) */}
-        <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-2">
+        {/* Exact Age Quick Filters & Live Counts (3..11, 12+) */}
+        <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 mr-1">
             <Calendar className="w-3.5 h-3.5 text-blue-600" />
             <span>{language === 'km' ? 'ចម្រោះ និងរាប់តាមអាយុ៖' : 'Age Filter & Count:'}</span>
@@ -438,7 +496,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
           <button
             type="button"
             onClick={() => { setAgeRangeFilter('all'); setCurrentPage(1); }}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+            className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition ${
               ageRangeFilter === 'all'
                 ? 'bg-slate-800 text-white border-slate-900 shadow-2xs'
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -457,14 +515,14 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
                   setAgeRangeFilter(isActive ? 'all' : item.key);
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 ${
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
                   isActive
                     ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
                     : 'bg-blue-50/70 text-blue-950 border-blue-200 hover:bg-blue-100'
                 }`}
               >
-                <span>{language === 'km' ? `${item.age} ឆ្នាំ` : `${item.age}y`}</span>
-                <span className={`px-1.5 py-0.2 rounded text-[11px] font-black ${
+                <span>{language === 'km' ? item.label : `${item.age}y`}</span>
+                <span className={`px-1 py-0.2 rounded text-[10px] font-black ${
                   isActive ? 'bg-white/20 text-white' : 'bg-white text-blue-800 border border-blue-200'
                 }`}>
                   {item.total}
@@ -532,12 +590,75 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
         </div>
       </div>
 
+      {/* Batch Tick-to-Enroll Action Bar */}
+      {onEnrollCitizens && selectedCitizenIds.size > 0 && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs shadow-sm no-print">
+          <div className="flex items-center gap-2 font-bold text-emerald-950">
+            <CheckSquare className="w-4 h-4 text-emerald-700" />
+            <span>បាន Tick កុមារ/ពលរដ្ឋ៖ <strong className="text-emerald-700 text-sm">{selectedCitizenIds.size} នាក់</strong></span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={enrollTargetGrade}
+              onChange={(e) => setEnrollTargetGrade(e.target.value as 'auto' | StudentGrade)}
+              className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-slate-800"
+            >
+              <option value="auto">ថ្នាក់៖ ស្វ័យប្រវត្តិតាមអាយុ</option>
+              <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យទាប</option>
+              <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យមធ្យម</option>
+              <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យខ្ពស់</option>
+              <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
+              <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
+              <option value="ថ្នាក់ទី៣">ថ្នាក់ទី៣</option>
+              <option value="ថ្នាក់ទី៤">ថ្នាក់ទី៤</option>
+              <option value="ថ្នាក់ទី៥">ថ្នាក់ទី៥</option>
+              <option value="ថ្នាក់ទី៦">ថ្នាក់ទី៦</option>
+            </select>
+            <select
+              value={enrollTargetSection}
+              onChange={(e) => setEnrollTargetSection(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-slate-800"
+            >
+              <option value="ក">បន្ទប់ ក</option>
+              <option value="ខ">បន្ទប់ ខ</option>
+              <option value="គ">បន្ទប់ គ</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleBatchEnrollSelected}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs transition"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>បញ្ជូនទៅចូលរៀន ({selectedCitizenIds.size} នាក់)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCitizenIds(new Set())}
+              className="px-2.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-200 font-semibold"
+            >
+              បោះបង់
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
         <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-left text-xs sm:text-sm print-standard-table">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold text-[11px] tracking-wider select-none">
               <tr>
+                {onEnrollCitizens && (
+                  <th className="py-3 px-3 text-center w-8 no-print">
+                    <input
+                      type="checkbox"
+                      checked={paginatedCitizens.length > 0 && paginatedCitizens.every(c => selectedCitizenIds.has(c.id))}
+                      onChange={toggleSelectPage}
+                      title="Tick ទាំងអស់ក្នុងទំព័រនេះ"
+                      className="rounded text-emerald-600 cursor-pointer"
+                    />
+                  </th>
+                )}
                 <th 
                   onClick={() => handleSort('id')} 
                   className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition"
@@ -610,7 +731,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
             <tbody className="divide-y divide-slate-100">
               {paginatedCitizens.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={onEnrollCitizens ? 11 : 10} className="py-12 text-center text-slate-500">
                     <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-medium text-slate-700">{t.noResults}</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -621,17 +742,38 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
               ) : (
                 paginatedCitizens.map((c) => {
                   const isMale = c.gender === 'ប្រុស';
+                  const isTicked = selectedCitizenIds.has(c.id);
                   return (
                     <tr 
                       key={c.id} 
-                      className="hover:bg-slate-50/80 transition group cursor-pointer"
+                      className={`hover:bg-slate-50/80 transition group cursor-pointer ${
+                        isTicked ? 'bg-emerald-50/60' : ''
+                      }`}
                       onClick={() => onSelectCitizen(c)}
                     >
+                      {onEnrollCitizens && (
+                        <td className="py-3 px-3 text-center no-print" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isTicked}
+                            onChange={() => toggleSelectCitizen(c.id)}
+                            className="rounded text-emerald-600 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="py-3 px-4 font-mono text-xs text-slate-500">
                         #{c.originalId || c.id}
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-900 group-hover:text-blue-600 transition">
-                        {c.name}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{c.name}</span>
+                          {c.enrollmentStatus === 'enrolled' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              <span>ចូលរៀន</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${

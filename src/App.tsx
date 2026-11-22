@@ -16,8 +16,8 @@ import { StudentInformationView } from './components/StudentInformationView';
 import { CitizenModal } from './components/CitizenModal';
 import { CitizenFormModal } from './components/CitizenFormModal';
 import { translations } from './utils/translations';
-import { StudentRecord } from './types/student';
-import { loadStudents, saveStudents } from './utils/studentData';
+import { StudentRecord, StudentGrade } from './types/student';
+import { loadStudents, saveStudents, createStudentFromCitizen, getDefaultGradeForCitizen } from './utils/studentData';
 import { 
   auth, 
   signInWithGoogle, 
@@ -444,14 +444,122 @@ export const App: React.FC = () => {
 
   const handleImportStudents = useCallback((newStudents: StudentRecord[]) => {
     if (newStudents.length === 0) return;
+
+    const importedByCitizenId = new Map<number, StudentRecord>();
+    const importedByNameHh = new Map<string, StudentRecord>();
+    for (const st of newStudents) {
+      if (typeof st.citizenId === 'number') {
+        importedByCitizenId.set(st.citizenId, st);
+      }
+      const key = `${st.name.trim()}_${(st.householdCode || '').trim()}`;
+      importedByNameHh.set(key, st);
+    }
+
     setStudents(prev => {
-      const updated = [...newStudents, ...prev];
+      const next = [...prev];
+      const toPrepend: StudentRecord[] = [];
+      const matchedKeys = new Set<string>();
+
+      for (const incoming of newStudents) {
+        const key = `${incoming.name.trim()}_${(incoming.householdCode || '').trim()}`;
+        const existingIdx = next.findIndex(s =>
+          (typeof incoming.citizenId === 'number' && s.citizenId === incoming.citizenId) ||
+          (`${s.name.trim()}_${(s.householdCode || '').trim()}` === key && key !== '_')
+        );
+        if (existingIdx >= 0) {
+          next[existingIdx] = {
+            ...next[existingIdx],
+            grade: incoming.grade,
+            section: incoming.section,
+            status: 'active',
+            citizenId: incoming.citizenId ?? next[existingIdx].citizenId,
+            updatedAt: new Date().toISOString()
+          };
+          matchedKeys.add(key);
+        } else if (!matchedKeys.has(key)) {
+          toPrepend.push({ ...incoming, status: 'active' });
+          matchedKeys.add(key);
+        }
+      }
+
+      const updated = [...toPrepend, ...next];
       saveStudents(updated);
       return updated;
     });
-    showToast(language === 'km' 
-      ? `បាននាំចូលកុមារ ${newStudents.length} នាក់ទៅក្នុងតារាងសិស្សដោយជោគជ័យ!` 
-      : `Successfully imported ${newStudents.length} students from census!`);
+
+    // Mark matching citizens in census as 'enrolled' so comparison & mobilization views recalculate immediately
+    setCitizens(prev => prev.map(c => {
+      const key = `${c.name.trim()}_${String(c.householdCode || c.householdId).trim()}`;
+      if (importedByCitizenId.has(c.id) || importedByNameHh.has(key)) {
+        if (c.enrollmentStatus === 'enrolled') return c;
+        const updatedCitizen = { ...c, enrollmentStatus: 'enrolled' as EnrollmentStatus };
+        if (user) {
+          syncCitizenToFirestore(updatedCitizen).catch(err => {
+            console.info('Status sync note:', err);
+          });
+        }
+        return updatedCitizen;
+      }
+      return c;
+    }));
+
+    showToast(language === 'km'
+      ? `បានបញ្ជូនកុមារ ${newStudents.length} នាក់ចូលរៀន និងគណនាតារាងឡើងវិញដោយជោគជ័យ!`
+      : `Successfully enrolled ${newStudents.length} students and recalculated tables!`);
+  }, [language, user]);
+
+  const handleEnrollCitizens = useCallback((
+    citizenIds: number[],
+    targetGrade: StudentGrade | 'auto' = 'auto',
+    section: string = 'ក'
+  ) => {
+    if (citizenIds.length === 0) return;
+    const idSet = new Set(citizenIds);
+    const targetCitizens = citizens.filter(c => idSet.has(c.id));
+    if (targetCitizens.length === 0) return;
+
+    const studentRecords = targetCitizens.map(c => {
+      const resolvedGrade = targetGrade === 'auto' ? getDefaultGradeForCitizen(c) : targetGrade;
+      return createStudentFromCitizen(c, households, resolvedGrade, section);
+    });
+    handleImportStudents(studentRecords);
+  }, [citizens, households, handleImportStudents]);
+
+  const handleBatchUpdateStudents = useCallback((
+    studentIds: string[],
+    patch: Partial<StudentRecord>
+  ) => {
+    if (studentIds.length === 0) return;
+    const idSet = new Set(studentIds);
+    const nowIso = new Date().toISOString();
+
+    let affectedCitizenIds: number[] = [];
+    setStudents(prev => {
+      const updated = prev.map(s => {
+        if (!idSet.has(s.id)) return s;
+        if (typeof s.citizenId === 'number') affectedCitizenIds.push(s.citizenId);
+        return { ...s, ...patch, updatedAt: nowIso };
+      });
+      saveStudents(updated);
+      return updated;
+    });
+
+    if (patch.status && affectedCitizenIds.length > 0) {
+      const cidSet = new Set(affectedCitizenIds);
+      const nextCitizenStatus: EnrollmentStatus =
+        patch.status === 'active' || patch.status === 'transferred_in'
+          ? 'enrolled'
+          : patch.status === 'transferred_out'
+            ? 'moved'
+            : 'not_enrolled';
+      setCitizens(prev => prev.map(c => (
+        cidSet.has(c.id) ? { ...c, enrollmentStatus: nextCitizenStatus } : c
+      )));
+    }
+
+    showToast(language === 'km'
+      ? `បានធ្វើបច្ចុប្បន្នភាពសិស្ស ${studentIds.length} នាក់ដោយជោគជ័យ!`
+      : `Updated ${studentIds.length} student records!`);
   }, [language]);
 
   const handleSaveComparisonToCloud = useCallback(async (comparisonRows: unknown[]) => {
@@ -521,10 +629,10 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Compact Floating Controls when Header & Footer are hidden (Full View & Print Ready) */}
+      {/* Compact Docked Top Controls when Header & Footer are hidden (Full View & Print Ready) */}
       {hideHeaderFooter && (
-        <div className="sticky top-2 z-40 px-2 sm:px-4 pt-2 flex justify-end pointer-events-none no-print print:hidden">
-          <div className="pointer-events-auto inline-flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-300 shadow-lg rounded-xl px-2.5 py-1.5 text-xs">
+        <div className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs px-2 sm:px-4 py-1.5 flex justify-end no-print print:hidden">
+          <div className="inline-flex flex-wrap items-center justify-end gap-1.5 text-xs">
             <select
               value={currentTab}
               onChange={(e) => setCurrentTab(e.target.value as ViewTab)}
@@ -659,6 +767,7 @@ export const App: React.FC = () => {
             language={language}
             onUpdateCitizenStatus={handleUpdateChildStatus}
             onSelectCitizen={setSelectedCitizen}
+            onEnrollCitizens={handleEnrollCitizens}
           />
         )}
 
@@ -671,6 +780,7 @@ export const App: React.FC = () => {
             onSaveStudent={handleSaveStudent}
             onDeleteStudent={handleDeleteStudent}
             onImportStudents={handleImportStudents}
+            onBatchUpdateStudents={handleBatchUpdateStudents}
           />
         )}
 
@@ -688,6 +798,7 @@ export const App: React.FC = () => {
               setCitizenToEdit(null);
               setIsFormModalOpen(true);
             }}
+            onEnrollCitizens={handleEnrollCitizens}
             initialOccupationFilter={occupationFilter}
             initialGenderFilter={genderFilter}
             onClearInitialFilters={() => {

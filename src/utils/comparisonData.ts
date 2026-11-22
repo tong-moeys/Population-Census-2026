@@ -1,6 +1,16 @@
-import { VillageComparisonRow, ComparisonGrandTotal } from '../types/comparison';
+import {
+  VillageComparisonRow,
+  ComparisonGrandTotal,
+  PrimaryVillageComparisonRow,
+  PrimaryGrandTotal,
+  VillageCategory,
+  MigrationVarianceStatus,
+  VillageMigrationOverrideMap,
+  VillageAgeMigrationRow
+} from '../types/comparison';
 import { Citizen } from '../types/census';
 import { StudentRecord } from '../types/student';
+import { calculateAgeInMonths, parseDateOfBirth } from './enrollmentUtils';
 
 export const STORAGE_KEY_COMPARISON = 'moeys_comparison_table_2026_v1';
 
@@ -205,13 +215,84 @@ export function loadSavedComparisonRows(): VillageComparisonRow[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(computeRowRates);
+        const rows = parsed.map(computeRowRates);
+        if (!rows.some(r => r.id === 'outside')) {
+          rows.push(
+            computeRowRates({
+              id: 'outside',
+              villageName: 'មកពីភូមិផ្សេង (ចំណូល)',
+              populationTotal: 0,
+              populationFemale: 0,
+              householdCount: 0,
+              age0Total: 0,
+              age0Female: 0,
+              age1Total: 0,
+              age1Female: 0,
+              age2Total: 0,
+              age2Female: 0,
+              age0to2Total: 0,
+              age0to2Female: 0,
+              age3Total: 0,
+              age3Female: 0,
+              age4Total: 0,
+              age4Female: 0,
+              age5Total: 0,
+              age5Female: 0,
+              age3to5Total: 0,
+              age3to5Female: 0,
+              enrolled3Total: 0,
+              enrolled3Female: 0,
+              enrolled4Total: 0,
+              enrolled4Female: 0,
+              enrolled5Total: 0,
+              enrolled5Female: 0,
+              enrolled3to5Total: 0,
+              enrolled3to5Female: 0,
+              remarks: 'សិស្សចំណូលមកពីភូមិក្រៅតំបន់សេវា'
+            })
+          );
+        }
+        return rows;
       }
     }
   } catch (e) {
     console.info('Using default comparison table data:', e);
   }
-  return DEFAULT_COMPARISON_ROWS.map(computeRowRates);
+  return [
+    ...DEFAULT_COMPARISON_ROWS.map(computeRowRates),
+    computeRowRates({
+      id: 'outside',
+      villageName: 'មកពីភូមិផ្សេង (ចំណូល)',
+      populationTotal: 0,
+      populationFemale: 0,
+      householdCount: 0,
+      age0Total: 0,
+      age0Female: 0,
+      age1Total: 0,
+      age1Female: 0,
+      age2Total: 0,
+      age2Female: 0,
+      age0to2Total: 0,
+      age0to2Female: 0,
+      age3Total: 0,
+      age3Female: 0,
+      age4Total: 0,
+      age4Female: 0,
+      age5Total: 0,
+      age5Female: 0,
+      age3to5Total: 0,
+      age3to5Female: 0,
+      enrolled3Total: 0,
+      enrolled3Female: 0,
+      enrolled4Total: 0,
+      enrolled4Female: 0,
+      enrolled5Total: 0,
+      enrolled5Female: 0,
+      enrolled3to5Total: 0,
+      enrolled3to5Female: 0,
+      remarks: 'សិស្សចំណូលមកពីភូមិក្រៅតំបន់សេវា'
+    })
+  ];
 }
 
 export function saveComparisonRows(rows: VillageComparisonRow[]): void {
@@ -222,17 +303,42 @@ export function saveComparisonRows(rows: VillageComparisonRow[]): void {
   }
 }
 
+export function classifyCitizenVillage(c: Citizen): 'roak' | 'mukh_chhnang' {
+  const v = (c.village || '').trim();
+  return v.includes('មុខឈ្នាង') ? 'mukh_chhnang' : 'roak';
+}
+
+export function classifyStudentVillage(s: StudentRecord): VillageCategory {
+  const v = (s.currentVillage || s.pobVillage || '').trim();
+  if (v.includes('មុខឈ្នាង')) return 'mukh_chhnang';
+  if (!v || v.includes('រោគ')) return 'roak';
+  return 'outside';
+}
+
 // Compute live census statistics for a given village from the database
 export function populateCensusFromCitizens(villageName: string, citizens: Citizen[]) {
-  const isTargetVillage = (c: Citizen) => {
-    const v = (c.village || '').trim();
-    if (villageName.includes('មុខឈ្នាង')) {
-      return v === 'មុខឈ្នាង';
-    }
-    return v === 'រោគ' || v !== 'មុខឈ្នាង';
-  };
+  if (villageName.includes('ភូមិផ្សេង') || villageName.includes('ចំណូល')) {
+    return {
+      populationTotal: 0,
+      populationFemale: 0,
+      householdCount: 0,
+      age0Total: 0,
+      age0Female: 0,
+      age1Total: 0,
+      age1Female: 0,
+      age2Total: 0,
+      age2Female: 0,
+      age3Total: 0,
+      age3Female: 0,
+      age4Total: 0,
+      age4Female: 0,
+      age5Total: 0,
+      age5Female: 0
+    };
+  }
 
-  const villageCitizens = citizens.filter(isTargetVillage);
+  const targetCategory = villageName.includes('មុខឈ្នាង') ? 'mukh_chhnang' : 'roak';
+  const villageCitizens = citizens.filter(c => classifyCitizenVillage(c) === targetCategory);
   const popTotal = villageCitizens.length;
   const popFemale = villageCitizens.filter(c => c.gender === 'ស្រី').length;
   const householdSet = new Set(villageCitizens.map(c => `${c.village || 'រោគ'}_${c.householdCode || c.householdId}`));
@@ -270,29 +376,44 @@ export function populateCensusFromCitizens(villageName: string, citizens: Citize
   };
 }
 
-// Compute student enrollment counts from the actual students list
-export function populateEnrolledFromStudents(villageName: string, students: StudentRecord[]) {
-  const isTargetVillage = (s: StudentRecord) => {
-    const v = (s.currentVillage || s.pobVillage || '').trim();
-    if (villageName.includes('មុខឈ្នាង')) {
-      return v.includes('មុខឈ្នាង');
-    }
-    return v.includes('រោគ') || (!v.includes('មុខឈ្នាង') && v.length > 0);
-  };
+export function isActiveStudent(s: StudentRecord): boolean {
+  return s.status !== 'dropped_out' && s.status !== 'transferred_out' && s.status !== 'graduated';
+}
 
-  const villageStudents = students.filter(isTargetVillage);
+export function getStudentAgeYears(s: StudentRecord): number {
+  if (typeof s.age === 'number' && !isNaN(s.age) && s.age > 0) {
+    return Math.floor(s.age);
+  }
+  if (s.dob) {
+    const trimmed = s.dob.trim();
+    const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+    if (isoMatch) {
+      const yr = parseInt(isoMatch[1], 10);
+      if (!isNaN(yr)) return Math.max(0, 2026 - yr);
+    }
+    const parsed = parseDateOfBirth(trimmed);
+    if (parsed) {
+      return Math.max(0, 2026 - parsed.getFullYear());
+    }
+  }
+  if (typeof s.ageMonths === 'number' && !isNaN(s.ageMonths) && s.ageMonths > 0) {
+    return Math.floor(s.ageMonths / 12);
+  }
+  return 0;
+}
+
+// Compute student enrollment counts from the actual students list (purely by exact age)
+export function populateEnrolledFromStudents(villageName: string, students: StudentRecord[]) {
+  const targetCategory: VillageCategory = villageName.includes('មុខឈ្នាង')
+    ? 'mukh_chhnang'
+    : (villageName.includes('ភូមិផ្សេង') || villageName.includes('ចំណូល'))
+      ? 'outside'
+      : 'roak';
+
+  const villageStudents = students.filter(isActiveStudent).filter(s => classifyStudentVillage(s) === targetCategory);
 
   const countStudentAge = (targetAge: number) => {
-    const matched = villageStudents.filter(s => {
-      let age = s.age;
-      if (!age && s.dob) {
-        const yr = parseInt(s.dob.split('-')[0], 10);
-        if (!isNaN(yr)) {
-          age = 2026 - yr;
-        }
-      }
-      return age === targetAge;
-    });
+    const matched = villageStudents.filter(s => getStudentAgeYears(s) === targetAge);
     const female = matched.filter(s => s.gender === 'ស្រី').length;
     return { total: matched.length, female };
   };
@@ -309,6 +430,112 @@ export function populateEnrolledFromStudents(villageName: string, students: Stud
     enrolled5Total: e5.total,
     enrolled5Female: e5.female
   };
+}
+
+export function generatePreschoolBaseline(citizens: Citizen[], students: StudentRecord[]): VillageComparisonRow[] {
+  const savedMap = new Map(DEFAULT_COMPARISON_ROWS.map(r => [r.id, r]));
+  const activeStudents = students.filter(isActiveStudent);
+  const linkedCitizenIds = new Set(
+    activeStudents.map(s => s.citizenId).filter((cid): cid is number => typeof cid === 'number' && !isNaN(cid))
+  );
+  const studentNameSet = new Set(activeStudents.map(s => (s.name || '').trim()).filter(Boolean));
+
+  const buildRow = (id: string, villageName: string, fallbackRemark = '') => {
+    const census = populateCensusFromCitizens(villageName, citizens);
+    const enrolled = populateEnrolledFromStudents(villageName, students);
+    const targetCategory: VillageCategory = id === 'mukh_chhnang' ? 'mukh_chhnang' : id === 'outside' ? 'outside' : 'roak';
+    const extraCitizens = targetCategory === 'outside'
+      ? []
+      : citizens.filter(
+          c =>
+            classifyCitizenVillage(c) === targetCategory &&
+            c.enrollmentStatus === 'enrolled' &&
+            !linkedCitizenIds.has(c.id) &&
+            !studentNameSet.has((c.name || '').trim())
+        );
+
+    const extraCount = (age: number) => {
+      const m = extraCitizens.filter(c => c.age === age);
+      return { total: m.length, female: m.filter(c => c.gender === 'ស្រី').length };
+    };
+    const ex3 = extraCount(3);
+    const ex4 = extraCount(4);
+    const ex5 = extraCount(5);
+
+    const enrolled3Total = enrolled.enrolled3Total + ex3.total;
+    const enrolled3Female = enrolled.enrolled3Female + ex3.female;
+    const enrolled4Total = enrolled.enrolled4Total + ex4.total;
+    const enrolled4Female = enrolled.enrolled4Female + ex4.female;
+    const enrolled5Total = enrolled.enrolled5Total + ex5.total;
+    const enrolled5Female = enrolled.enrolled5Female + ex5.female;
+
+    const base = savedMap.get(id);
+    return computeRowRates({
+      id,
+      villageName,
+      ...census,
+      age0to2Total: census.age0Total + census.age1Total + census.age2Total,
+      age0to2Female: census.age0Female + census.age1Female + census.age2Female,
+      age3to5Total: census.age3Total + census.age4Total + census.age5Total,
+      age3to5Female: census.age3Female + census.age4Female + census.age5Female,
+      enrolled3Total,
+      enrolled3Female,
+      enrolled4Total,
+      enrolled4Female,
+      enrolled5Total,
+      enrolled5Female,
+      enrolled3to5Total: enrolled3Total + enrolled4Total + enrolled5Total,
+      enrolled3to5Female: enrolled3Female + enrolled4Female + enrolled5Female,
+      remarks: base?.remarks || fallbackRemark
+    });
+  };
+  return [
+    buildRow('roak', 'ភូមិរោគ'),
+    buildRow('mukh_chhnang', 'ភូមិមុខឈ្នាង'),
+    buildRow('outside', 'មកពីភូមិផ្សេង (ចំណូល)', 'សិស្សចំណូលមកពីភូមិក្រៅតំបន់សេវា')
+  ];
+}
+
+export function syncPreschoolRowsWithSystemData(
+  existingRows: VillageComparisonRow[],
+  citizens: Citizen[],
+  students: StudentRecord[],
+  syncStudentsAlso: boolean
+): VillageComparisonRow[] {
+  const freshRows = generatePreschoolBaseline(citizens, students);
+  const existingMap = new Map(existingRows.map(r => [r.id, r]));
+  return freshRows.map(fresh => {
+    const prev = existingMap.get(fresh.id);
+    if (!prev) return fresh;
+    if (syncStudentsAlso) {
+      return computeRowRates({
+        ...fresh,
+        remarks: prev.remarks ?? fresh.remarks
+      });
+    }
+    return computeRowRates({
+      ...prev,
+      populationTotal: fresh.populationTotal,
+      populationFemale: fresh.populationFemale,
+      householdCount: fresh.householdCount,
+      age0Total: fresh.age0Total,
+      age0Female: fresh.age0Female,
+      age1Total: fresh.age1Total,
+      age1Female: fresh.age1Female,
+      age2Total: fresh.age2Total,
+      age2Female: fresh.age2Female,
+      age0to2Total: fresh.age0to2Total,
+      age0to2Female: fresh.age0to2Female,
+      age3Total: fresh.age3Total,
+      age3Female: fresh.age3Female,
+      age4Total: fresh.age4Total,
+      age4Female: fresh.age4Female,
+      age5Total: fresh.age5Total,
+      age5Female: fresh.age5Female,
+      age3to5Total: fresh.age3to5Total,
+      age3to5Female: fresh.age3to5Female
+    });
+  });
 }
 
 export function exportComparisonToCSV(rows: VillageComparisonRow[], grandTotal: ComparisonGrandTotal) {
@@ -407,10 +634,7 @@ export function exportComparisonToCSV(rows: VillageComparisonRow[], grandTotal: 
 // PRIMARY SCHOOL (AGE 6+ & GROUP 2) COMPARISON LOGIC & STORAGE
 // =========================================================================
 
-export const STORAGE_KEY_PRIMARY_COMPARISON = 'moeys_primary_comparison_table_2026_v2';
-
-import { PrimaryVillageComparisonRow, PrimaryGrandTotal } from '../types/comparison';
-import { calculateAgeInMonths } from './enrollmentUtils';
+export const STORAGE_KEY_PRIMARY_COMPARISON = 'moeys_primary_comparison_table_2026_v3';
 
 export function computePrimaryRowRates(
   row: Omit<PrimaryVillageComparisonRow, 
@@ -682,25 +906,17 @@ export function computePrimaryGrandTotal(rows: PrimaryVillageComparisonRow[]): P
   };
 }
 
-// Generate Primary Baseline by accurately inspecting the true census and enrolled student records
+// Generate Primary Baseline by inspecting the true census and active enrolled student records strictly by Age (not Grade)
 export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRecord[]): PrimaryVillageComparisonRow[] {
-  const isRoak = (c: Citizen) => {
-    const v = (c.village || '').trim();
-    return v === 'រោគ' || v !== 'មុខឈ្នាង';
-  };
-  const isMukhChhnang = (c: Citizen) => {
-    const v = (c.village || '').trim();
-    return v === 'មុខឈ្នាង';
-  };
+  const isRoak = (c: Citizen) => classifyCitizenVillage(c) === 'roak';
+  const isMukhChhnang = (c: Citizen) => classifyCitizenVillage(c) === 'mukh_chhnang';
+  const isOutsideCitizen = (_c: Citizen) => false;
 
-  const isStudentRoak = (s: StudentRecord) => {
-    const v = (s.currentVillage || s.pobVillage || '').trim();
-    return v.includes('រោគ') || (!v.includes('មុខឈ្នាង') && v.length > 0);
-  };
-  const isStudentMukhChhnang = (s: StudentRecord) => {
-    const v = (s.currentVillage || s.pobVillage || '').trim();
-    return v.includes('មុខឈ្នាង');
-  };
+  const isStudentRoak = (s: StudentRecord) => classifyStudentVillage(s) === 'roak';
+  const isStudentMukhChhnang = (s: StudentRecord) => classifyStudentVillage(s) === 'mukh_chhnang';
+  const isStudentOutside = (s: StudentRecord) => classifyStudentVillage(s) === 'outside';
+
+  const activeStudents = students.filter(isActiveStudent);
 
   const buildVillageRow = (
     id: string,
@@ -710,13 +926,22 @@ export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRe
     defaultRemarks: string
   ): PrimaryVillageComparisonRow => {
     const vCitizens = citizens.filter(filterCitizen);
-    const vStudents = students.filter(filterStudent);
+    const vStudents = activeStudents.filter(filterStudent);
 
     const popTotal = vCitizens.length;
     const popFemale = vCitizens.filter(c => c.gender === 'ស្រី').length;
     const hhCount = new Set(vCitizens.map(c => `${c.village || 'រោគ'}_${c.householdCode || c.householdId}`)).size;
 
-    // Group 2: 70-82 months (children entering Grade 1)
+    // Deduplication sets to combine Student Registry + Citizens marked as 'enrolled' without double-counting
+    const linkedCitizenIds = new Set(
+      vStudents.map(s => s.citizenId).filter((cid): cid is number => typeof cid === 'number' && !isNaN(cid))
+    );
+    const studentNameSet = new Set(vStudents.map(s => (s.name || '').trim()).filter(Boolean));
+    const extraEnrolledCitizens = vCitizens.filter(
+      c => c.enrollmentStatus === 'enrolled' && !linkedCitizenIds.has(c.id) && !studentNameSet.has((c.name || '').trim())
+    );
+
+    // Group 2: 70-82 months (purely by age/months window)
     const adultRel = new Set(['ប្តី', 'ប្រពន្ធ', 'ឪពុក', 'ម្តាយ', 'កូនប្រសារ', 'ម្ដាយក្មេក', 'ឪពុកក្មេក']);
     const nonAdults = vCitizens.filter(c => !adultRel.has((c.relationship || '').trim()));
 
@@ -728,31 +953,34 @@ export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRe
     const group2CensusTotal = group2List.length;
     const group2CensusFemale = group2List.filter(c => c.gender === 'ស្រី').length;
 
-    // Group 2 students enrolled (Grade 1 students from this village)
-    const g1Students = vStudents.filter(s => {
-      if (s.grade === 'ថ្នាក់ទី១') return true;
-      const mos = s.ageMonths || calculateAgeInMonths(s.dob, s.age);
+    const group2Students = vStudents.filter(s => {
+      const mos = (typeof s.ageMonths === 'number' && s.ageMonths > 0)
+        ? s.ageMonths
+        : calculateAgeInMonths(s.dob, getStudentAgeYears(s));
       return mos >= 70 && mos <= 82;
     });
-    const group2EnrolledTotal = g1Students.length > 0 ? g1Students.length : group2List.filter(c => c.enrollmentStatus === 'enrolled').length;
-    const group2EnrolledFemale = g1Students.length > 0 ? g1Students.filter(s => s.gender === 'ស្រី').length : group2List.filter(c => c.enrollmentStatus === 'enrolled' && c.gender === 'ស្រី').length;
+    const group2ExtraEnrolled = extraEnrolledCitizens.filter(c => {
+      if (adultRel.has((c.relationship || '').trim())) return false;
+      const mos = calculateAgeInMonths(c.dob, c.age);
+      return mos >= 70 && mos <= 82;
+    });
+    const group2EnrolledTotal = group2Students.length + group2ExtraEnrolled.length;
+    const group2EnrolledFemale =
+      group2Students.filter(s => s.gender === 'ស្រី').length +
+      group2ExtraEnrolled.filter(c => c.gender === 'ស្រី').length;
 
-    // Helper for ages 6 to 11
+    // Helper for exact ages 6 to 11
     const countAge = (targetAge: number) => {
       const matchCitizens = vCitizens.filter(c => c.age === targetAge);
       const matchFem = matchCitizens.filter(c => c.gender === 'ស្រី').length;
 
-      // Match enrolled students in this age or corresponding primary grade
-      const matchStudents = vStudents.filter(s => {
-        let age = s.age;
-        if (!age && s.dob) {
-          const yr = parseInt(s.dob.split('-')[0], 10);
-          if (!isNaN(yr)) age = 2026 - yr;
-        }
-        return age === targetAge;
-      });
-      const enrolledTot = matchStudents.length;
-      const enrolledFem = matchStudents.filter(s => s.gender === 'ស្រី').length;
+      const matchStudents = vStudents.filter(s => getStudentAgeYears(s) === targetAge);
+      const matchExtraEnrolled = extraEnrolledCitizens.filter(c => c.age === targetAge);
+
+      const enrolledTot = matchStudents.length + matchExtraEnrolled.length;
+      const enrolledFem =
+        matchStudents.filter(s => s.gender === 'ស្រី').length +
+        matchExtraEnrolled.filter(c => c.gender === 'ស្រី').length;
 
       return {
         censusTot: matchCitizens.length,
@@ -769,10 +997,11 @@ export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRe
     const a10 = countAge(10);
     const a11 = countAge(11);
 
-    // Age 12+
+    // Age 12+ (Youth 12-18 in census; active students aged >= 12)
     const a12Match = vCitizens.filter(c => c.age >= 12 && c.age <= 18);
     const a12Fem = a12Match.filter(c => c.gender === 'ស្រី').length;
-    const a12Students = vStudents.filter(s => s.age >= 12);
+    const a12Students = vStudents.filter(s => getStudentAgeYears(s) >= 12);
+    const a12ExtraEnrolled = extraEnrolledCitizens.filter(c => c.age >= 12 && c.age <= 18);
 
     return computePrimaryRowRates({
       id,
@@ -786,8 +1015,8 @@ export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRe
       group2EnrolledFemale,
       age6CensusTotal: a6.censusTot,
       age6CensusFemale: a6.censusFem,
-      age6EnrolledTotal: Math.max(a6.enrolledTot, group2EnrolledTotal), // 6yo or Grade 1
-      age6EnrolledFemale: Math.max(a6.enrolledFem, group2EnrolledFemale),
+      age6EnrolledTotal: a6.enrolledTot,
+      age6EnrolledFemale: a6.enrolledFem,
       age7CensusTotal: a7.censusTot,
       age7CensusFemale: a7.censusFem,
       age7EnrolledTotal: a7.enrolledTot,
@@ -810,16 +1039,62 @@ export function generatePrimaryBaseline(citizens: Citizen[], students: StudentRe
       age11EnrolledFemale: a11.enrolledFem,
       age12PlusCensusTotal: a12Match.length,
       age12PlusCensusFemale: a12Fem,
-      age12PlusEnrolledTotal: a12Students.length,
-      age12PlusEnrolledFemale: a12Students.filter(s => s.gender === 'ស្រី').length,
+      age12PlusEnrolledTotal: a12Students.length + a12ExtraEnrolled.length,
+      age12PlusEnrolledFemale:
+        a12Students.filter(s => s.gender === 'ស្រី').length +
+        a12ExtraEnrolled.filter(c => c.gender === 'ស្រី').length,
       remarks: defaultRemarks
     });
   };
 
-  const roakRow = buildVillageRow('roak', 'ភូមិរោគ', isRoak, isStudentRoak, 'សិស្សបានចុះឈ្មោះស្ទើរពេញលេញ (មានកុមារខ្លះមកពីតំបន់ក្បែរ)');
+  const roakRow = buildVillageRow('roak', 'ភូមិរោគ', isRoak, isStudentRoak, 'ទាញទិន្នន័យស្វ័យប្រវត្តិពីជំរឿន និងបញ្ជីសិស្ស');
   const mukhChhnangRow = buildVillageRow('mukh_chhnang', 'ភូមិមុខឈ្នាង', isMukhChhnang, isStudentMukhChhnang, 'ភូមិចំណុះបឋមសិក្សារោគ');
+  const outsideRow = buildVillageRow('outside', 'មកពីភូមិផ្សេង (ចំណូល)', isOutsideCitizen, isStudentOutside, 'សិស្សចំណូលមកពីភូមិក្រៅតំបន់សេវា');
 
-  return [roakRow, mukhChhnangRow];
+  return [roakRow, mukhChhnangRow, outsideRow];
+}
+
+export function syncPrimaryRowsWithSystemData(
+  existingRows: PrimaryVillageComparisonRow[],
+  citizens: Citizen[],
+  students: StudentRecord[],
+  syncStudentsAlso: boolean
+): PrimaryVillageComparisonRow[] {
+  const freshRows = generatePrimaryBaseline(citizens, students);
+  const existingMap = new Map(existingRows.map(r => [r.id, r]));
+
+  return freshRows.map(fresh => {
+    const prev = existingMap.get(fresh.id);
+    if (!prev) return fresh;
+    if (syncStudentsAlso) {
+      return computePrimaryRowRates({
+        ...fresh,
+        remarks: prev.remarks ?? fresh.remarks
+      });
+    }
+    return computePrimaryRowRates({
+      ...prev,
+      populationTotal: fresh.populationTotal,
+      populationFemale: fresh.populationFemale,
+      householdCount: fresh.householdCount,
+      group2CensusTotal: fresh.group2CensusTotal,
+      group2CensusFemale: fresh.group2CensusFemale,
+      age6CensusTotal: fresh.age6CensusTotal,
+      age6CensusFemale: fresh.age6CensusFemale,
+      age7CensusTotal: fresh.age7CensusTotal,
+      age7CensusFemale: fresh.age7CensusFemale,
+      age8CensusTotal: fresh.age8CensusTotal,
+      age8CensusFemale: fresh.age8CensusFemale,
+      age9CensusTotal: fresh.age9CensusTotal,
+      age9CensusFemale: fresh.age9CensusFemale,
+      age10CensusTotal: fresh.age10CensusTotal,
+      age10CensusFemale: fresh.age10CensusFemale,
+      age11CensusTotal: fresh.age11CensusTotal,
+      age11CensusFemale: fresh.age11CensusFemale,
+      age12PlusCensusTotal: fresh.age12PlusCensusTotal,
+      age12PlusCensusFemale: fresh.age12PlusCensusFemale
+    });
+  });
 }
 
 export function loadSavedPrimaryComparisonRows(citizens: Citizen[], students: StudentRecord[]): PrimaryVillageComparisonRow[] {
@@ -828,7 +1103,7 @@ export function loadSavedPrimaryComparisonRows(citizens: Citizen[], students: St
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(computePrimaryRowRates);
+        return syncPrimaryRowsWithSystemData(parsed.map(computePrimaryRowRates), citizens, students, false);
       }
     }
   } catch (e) {
@@ -846,33 +1121,38 @@ export function savePrimaryComparisonRows(rows: PrimaryVillageComparisonRow[]): 
 }
 
 export function exportPrimaryComparisonToCSV(rows: PrimaryVillageComparisonRow[], grandTotal: PrimaryGrandTotal) {
+  const ageGroupHeaders = ['៦ ឆ្នាំ', '៧ ឆ្នាំ', '៨ ឆ្នាំ', '៩ ឆ្នាំ', '១០ ឆ្នាំ', '១១ ឆ្នាំ'];
+
   const line0 = [
     'ឈ្មោះភូមិរដ្ឋបាលចំណុះអោយសាលា',
     'ចំនួនប្រជាជន', '',
     'ចំនួនគ្រួសារ',
-    'កុមារក្រុម២ (៧០-៨២ ខែ / ៦ឆ្នាំ)', '', '', '', '', '', '', '',
-    '៦ឆ្នាំ (ថ្នាក់ទី១)', '', '', '',
-    '៧ឆ្នាំ (ថ្នាក់ទី២)', '', '', '',
-    '៨ឆ្នាំ (ថ្នាក់ទី៣)', '', '', '',
-    '៩ឆ្នាំ (ថ្នាក់ទី៤)', '', '', '',
-    '១០ឆ្នាំ (ថ្នាក់ទី៥)', '', '', '',
-    '១១ឆ្នាំ (ថ្នាក់ទី៦)', '', '', '',
+    'កុមារក្រុម២ (៧០-៨២ ខែ)', '', '', '', '', '', '', '',
+    ...ageGroupHeaders.flatMap(label => [label, '', '', '', '', '', '', '']),
     'សរុបកុមារបឋមសិក្សា (៦-១១ ឆ្នាំ)', '', '', '', '', '', '', '',
-    '១២ឆ្នាំឡើង', '', '', '',
+    '១២ ឆ្នាំឡើង', '', '', '',
     'កំណត់សំគាល់'
   ];
 
+  const metricPairHeaders = ['ជំរឿន', '', 'សិស្សរៀន', '', 'នៅសល់', '', '%', ''];
   const line1 = [
     '', '', '', '',
-    'ជំរឿនពិត', '', 'បានចុះឈ្មោះ', '', 'នៅសល់មិនទាន់ចុះឈ្មោះ', '', '% ចូលរៀន', '',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿន', 'សិស្សរៀន', 'នៅសល់', '%',
-    'ជំរឿនពិត សរុប', 'ជំរឿន ស្រី', 'បានចុះឈ្មោះ សរុប', 'បានចុះឈ្មោះ ស្រី', 'នៅសល់ សរុប', 'នៅសល់ ស្រី', '% ចូលរៀន សរុប', '% ចូលរៀន ស្រី',
-    'ជំរឿន', 'ជំរឿន ស្រី', 'សិស្សរៀន', 'សិស្សរៀន ស្រី',
+    'ជំរឿនពិត', '', 'សិស្សរៀន', '', 'នៅសល់', '', '% ចូលរៀន', '',
+    ...ageGroupHeaders.flatMap(() => metricPairHeaders),
+    'ជំរឿនសរុប', '', 'សិស្សរៀន', '', 'នៅសល់សរុប', '', '% ចូលរៀន', '',
+    'ជំរឿន', '', 'សិស្សរៀន', '',
+    ''
+  ];
+
+  const totalFemalePairs = (count: number) => Array.from({ length: count }, () => ['សរុប', 'ស្រី']).flat();
+  const line2 = [
+    '',
+    'សរុប', 'ស្រី',
+    '',
+    ...totalFemalePairs(4), // Group 2
+    ...ageGroupHeaders.flatMap(() => totalFemalePairs(4)), // Ages 6-11
+    ...totalFemalePairs(4), // Primary Total
+    ...totalFemalePairs(2), // Age 12+
     ''
   ];
 
@@ -883,12 +1163,12 @@ export function exportPrimaryComparisonToCSV(rows: PrimaryVillageComparisonRow[]
     r.group2EnrolledTotal, r.group2EnrolledFemale,
     r.group2RemainingTotal, r.group2RemainingFemale,
     `"${r.group2RateTotal}%"`, `"${r.group2RateFemale}%"`,
-    r.age6CensusTotal, r.age6EnrolledTotal, r.age6RemainingTotal, `"${r.age6RateTotal}%"`,
-    r.age7CensusTotal, r.age7EnrolledTotal, r.age7RemainingTotal, `"${r.age7RateTotal}%"`,
-    r.age8CensusTotal, r.age8EnrolledTotal, r.age8RemainingTotal, `"${r.age8RateTotal}%"`,
-    r.age9CensusTotal, r.age9EnrolledTotal, r.age9RemainingTotal, `"${r.age9RateTotal}%"`,
-    r.age10CensusTotal, r.age10EnrolledTotal, r.age10RemainingTotal, `"${r.age10RateTotal}%"`,
-    r.age11CensusTotal, r.age11EnrolledTotal, r.age11RemainingTotal, `"${r.age11RateTotal}%"`,
+    r.age6CensusTotal, r.age6CensusFemale, r.age6EnrolledTotal, r.age6EnrolledFemale, r.age6RemainingTotal, r.age6RemainingFemale, `"${r.age6RateTotal}%"`, `"${r.age6RateFemale}%"`,
+    r.age7CensusTotal, r.age7CensusFemale, r.age7EnrolledTotal, r.age7EnrolledFemale, r.age7RemainingTotal, r.age7RemainingFemale, `"${r.age7RateTotal}%"`, `"${r.age7RateFemale}%"`,
+    r.age8CensusTotal, r.age8CensusFemale, r.age8EnrolledTotal, r.age8EnrolledFemale, r.age8RemainingTotal, r.age8RemainingFemale, `"${r.age8RateTotal}%"`, `"${r.age8RateFemale}%"`,
+    r.age9CensusTotal, r.age9CensusFemale, r.age9EnrolledTotal, r.age9EnrolledFemale, r.age9RemainingTotal, r.age9RemainingFemale, `"${r.age9RateTotal}%"`, `"${r.age9RateFemale}%"`,
+    r.age10CensusTotal, r.age10CensusFemale, r.age10EnrolledTotal, r.age10EnrolledFemale, r.age10RemainingTotal, r.age10RemainingFemale, `"${r.age10RateTotal}%"`, `"${r.age10RateFemale}%"`,
+    r.age11CensusTotal, r.age11CensusFemale, r.age11EnrolledTotal, r.age11EnrolledFemale, r.age11RemainingTotal, r.age11RemainingFemale, `"${r.age11RateTotal}%"`, `"${r.age11RateFemale}%"`,
     r.primaryCensusTotal, r.primaryCensusFemale,
     r.primaryEnrolledTotal, r.primaryEnrolledFemale,
     r.primaryRemainingTotal, r.primaryRemainingFemale,
@@ -904,12 +1184,12 @@ export function exportPrimaryComparisonToCSV(rows: PrimaryVillageComparisonRow[]
     grandTotal.group2EnrolledTotal, grandTotal.group2EnrolledFemale,
     grandTotal.group2RemainingTotal, grandTotal.group2RemainingFemale,
     `"${grandTotal.group2RateTotal.toFixed(2)}%"`, `"${grandTotal.group2RateFemale.toFixed(2)}%"`,
-    grandTotal.age6CensusTotal, grandTotal.age6EnrolledTotal, grandTotal.age6RemainingTotal, `"${grandTotal.age6RateTotal.toFixed(2)}%"`,
-    grandTotal.age7CensusTotal, grandTotal.age7EnrolledTotal, grandTotal.age7RemainingTotal, `"${grandTotal.age7RateTotal.toFixed(2)}%"`,
-    grandTotal.age8CensusTotal, grandTotal.age8EnrolledTotal, grandTotal.age8RemainingTotal, `"${grandTotal.age8RateTotal.toFixed(2)}%"`,
-    grandTotal.age9CensusTotal, grandTotal.age9EnrolledTotal, grandTotal.age9RemainingTotal, `"${grandTotal.age9RateTotal.toFixed(2)}%"`,
-    grandTotal.age10CensusTotal, grandTotal.age10EnrolledTotal, grandTotal.age10RemainingTotal, `"${grandTotal.age10RateTotal.toFixed(2)}%"`,
-    grandTotal.age11CensusTotal, grandTotal.age11EnrolledTotal, grandTotal.age11RemainingTotal, `"${grandTotal.age11RateTotal.toFixed(2)}%"`,
+    grandTotal.age6CensusTotal, grandTotal.age6CensusFemale, grandTotal.age6EnrolledTotal, grandTotal.age6EnrolledFemale, grandTotal.age6RemainingTotal, grandTotal.age6RemainingFemale, `"${grandTotal.age6RateTotal.toFixed(2)}%"`, `"${grandTotal.age6RateFemale.toFixed(2)}%"`,
+    grandTotal.age7CensusTotal, grandTotal.age7CensusFemale, grandTotal.age7EnrolledTotal, grandTotal.age7EnrolledFemale, grandTotal.age7RemainingTotal, grandTotal.age7RemainingFemale, `"${grandTotal.age7RateTotal.toFixed(2)}%"`, `"${grandTotal.age7RateFemale.toFixed(2)}%"`,
+    grandTotal.age8CensusTotal, grandTotal.age8CensusFemale, grandTotal.age8EnrolledTotal, grandTotal.age8EnrolledFemale, grandTotal.age8RemainingTotal, grandTotal.age8RemainingFemale, `"${grandTotal.age8RateTotal.toFixed(2)}%"`, `"${grandTotal.age8RateFemale.toFixed(2)}%"`,
+    grandTotal.age9CensusTotal, grandTotal.age9CensusFemale, grandTotal.age9EnrolledTotal, grandTotal.age9EnrolledFemale, grandTotal.age9RemainingTotal, grandTotal.age9RemainingFemale, `"${grandTotal.age9RateTotal.toFixed(2)}%"`, `"${grandTotal.age9RateFemale.toFixed(2)}%"`,
+    grandTotal.age10CensusTotal, grandTotal.age10CensusFemale, grandTotal.age10EnrolledTotal, grandTotal.age10EnrolledFemale, grandTotal.age10RemainingTotal, grandTotal.age10RemainingFemale, `"${grandTotal.age10RateTotal.toFixed(2)}%"`, `"${grandTotal.age10RateFemale.toFixed(2)}%"`,
+    grandTotal.age11CensusTotal, grandTotal.age11CensusFemale, grandTotal.age11EnrolledTotal, grandTotal.age11EnrolledFemale, grandTotal.age11RemainingTotal, grandTotal.age11RemainingFemale, `"${grandTotal.age11RateTotal.toFixed(2)}%"`, `"${grandTotal.age11RateFemale.toFixed(2)}%"`,
     grandTotal.primaryCensusTotal, grandTotal.primaryCensusFemale,
     grandTotal.primaryEnrolledTotal, grandTotal.primaryEnrolledFemale,
     grandTotal.primaryRemainingTotal, grandTotal.primaryRemainingFemale,
@@ -921,6 +1201,7 @@ export function exportPrimaryComparisonToCSV(rows: PrimaryVillageComparisonRow[]
   const allLines = [
     line0.join(','),
     line1.join(','),
+    line2.join(','),
     ...rows.map(r => formatRow(r).join(',')),
     totalRow.join(',')
   ];
@@ -929,7 +1210,7 @@ export function exportPrimaryComparisonToCSV(rows: PrimaryVillageComparisonRow[]
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `primary-school-group2-comparison-2026-2027.csv`);
+  link.setAttribute('download', `primary-school-age-comparison-2026-2027.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -1111,4 +1392,516 @@ export function computeSchoolWideStatistics(
     }
   };
 }
+
+// =========================================================================
+// VILLAGE × AGE MIGRATION (ចំណូល-ចំណាកស្រុក) & <100% / >100% CAUSE ANALYSIS
+// =========================================================================
+
+export const STORAGE_KEY_MIGRATION_OVERRIDES = 'moeys_village_age_migration_2026_v1';
+
+export function loadMigrationOverrides(): VillageMigrationOverrideMap {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MIGRATION_OVERRIDES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return parsed as VillageMigrationOverrideMap;
+      }
+    }
+  } catch (e) {
+    console.info('Using default village migration overrides:', e);
+  }
+  return {};
+}
+
+export function saveMigrationOverrides(overrides: VillageMigrationOverrideMap): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_MIGRATION_OVERRIDES, JSON.stringify(overrides));
+  } catch (e) {
+    console.warn('Failed to save migration overrides to localStorage:', e);
+  }
+}
+
+interface AgeCohortDefinition {
+  ageKey: string;
+  ageLabelKm: string;
+  ageLabelEn: string;
+  matchesCitizen: (c: Citizen) => boolean;
+  matchesStudent: (s: StudentRecord) => boolean;
+}
+
+const ADULT_RELATIONSHIPS = new Set(['ប្តី', 'ប្រពន្ធ', 'ឪពុក', 'ម្តាយ', 'កូនប្រសារ', 'ម្ដាយក្មេក', 'ឪពុកក្មេក']);
+
+const ALL_AGE_COHORT_DEFS: AgeCohortDefinition[] = [
+  {
+    ageKey: '3',
+    ageLabelKm: '៣ ឆ្នាំ',
+    ageLabelEn: 'Age 3',
+    matchesCitizen: c => c.age === 3,
+    matchesStudent: s => getStudentAgeYears(s) === 3
+  },
+  {
+    ageKey: '4',
+    ageLabelKm: '៤ ឆ្នាំ',
+    ageLabelEn: 'Age 4',
+    matchesCitizen: c => c.age === 4,
+    matchesStudent: s => getStudentAgeYears(s) === 4
+  },
+  {
+    ageKey: '5',
+    ageLabelKm: '៥ ឆ្នាំ',
+    ageLabelEn: 'Age 5',
+    matchesCitizen: c => c.age === 5,
+    matchesStudent: s => getStudentAgeYears(s) === 5
+  },
+  {
+    ageKey: 'group2',
+    ageLabelKm: 'ក្រុម២ (៧០-៨២ខែ)',
+    ageLabelEn: 'Group 2 (70-82m)',
+    matchesCitizen: c => {
+      if (ADULT_RELATIONSHIPS.has((c.relationship || '').trim())) return false;
+      const mos = calculateAgeInMonths(c.dob, c.age);
+      return mos >= 70 && mos <= 82;
+    },
+    matchesStudent: s => {
+      const mos = (typeof s.ageMonths === 'number' && s.ageMonths > 0)
+        ? s.ageMonths
+        : calculateAgeInMonths(s.dob, getStudentAgeYears(s));
+      return mos >= 70 && mos <= 82;
+    }
+  },
+  {
+    ageKey: '6',
+    ageLabelKm: '៦ ឆ្នាំ',
+    ageLabelEn: 'Age 6',
+    matchesCitizen: c => c.age === 6,
+    matchesStudent: s => getStudentAgeYears(s) === 6
+  },
+  {
+    ageKey: '7',
+    ageLabelKm: '៧ ឆ្នាំ',
+    ageLabelEn: 'Age 7',
+    matchesCitizen: c => c.age === 7,
+    matchesStudent: s => getStudentAgeYears(s) === 7
+  },
+  {
+    ageKey: '8',
+    ageLabelKm: '៨ ឆ្នាំ',
+    ageLabelEn: 'Age 8',
+    matchesCitizen: c => c.age === 8,
+    matchesStudent: s => getStudentAgeYears(s) === 8
+  },
+  {
+    ageKey: '9',
+    ageLabelKm: '៩ ឆ្នាំ',
+    ageLabelEn: 'Age 9',
+    matchesCitizen: c => c.age === 9,
+    matchesStudent: s => getStudentAgeYears(s) === 9
+  },
+  {
+    ageKey: '10',
+    ageLabelKm: '១០ ឆ្នាំ',
+    ageLabelEn: 'Age 10',
+    matchesCitizen: c => c.age === 10,
+    matchesStudent: s => getStudentAgeYears(s) === 10
+  },
+  {
+    ageKey: '11',
+    ageLabelKm: '១១ ឆ្នាំ',
+    ageLabelEn: 'Age 11',
+    matchesCitizen: c => c.age === 11,
+    matchesStudent: s => getStudentAgeYears(s) === 11
+  },
+  {
+    ageKey: '12+',
+    ageLabelKm: '១២+ ឆ្នាំ',
+    ageLabelEn: 'Age 12+',
+    matchesCitizen: c => c.age >= 12 && c.age <= 18,
+    matchesStudent: s => getStudentAgeYears(s) >= 12
+  }
+];
+
+function extractFromPrimaryRow(row: PrimaryVillageComparisonRow, ageKey: string) {
+  switch (ageKey) {
+    case 'group2':
+      return {
+        censusTotal: row.group2CensusTotal,
+        censusFemale: row.group2CensusFemale,
+        enrolledTotal: row.group2EnrolledTotal,
+        enrolledFemale: row.group2EnrolledFemale
+      };
+    case '6':
+      return {
+        censusTotal: row.age6CensusTotal,
+        censusFemale: row.age6CensusFemale,
+        enrolledTotal: row.age6EnrolledTotal,
+        enrolledFemale: row.age6EnrolledFemale
+      };
+    case '7':
+      return {
+        censusTotal: row.age7CensusTotal,
+        censusFemale: row.age7CensusFemale,
+        enrolledTotal: row.age7EnrolledTotal,
+        enrolledFemale: row.age7EnrolledFemale
+      };
+    case '8':
+      return {
+        censusTotal: row.age8CensusTotal,
+        censusFemale: row.age8CensusFemale,
+        enrolledTotal: row.age8EnrolledTotal,
+        enrolledFemale: row.age8EnrolledFemale
+      };
+    case '9':
+      return {
+        censusTotal: row.age9CensusTotal,
+        censusFemale: row.age9CensusFemale,
+        enrolledTotal: row.age9EnrolledTotal,
+        enrolledFemale: row.age9EnrolledFemale
+      };
+    case '10':
+      return {
+        censusTotal: row.age10CensusTotal,
+        censusFemale: row.age10CensusFemale,
+        enrolledTotal: row.age10EnrolledTotal,
+        enrolledFemale: row.age10EnrolledFemale
+      };
+    case '11':
+      return {
+        censusTotal: row.age11CensusTotal,
+        censusFemale: row.age11CensusFemale,
+        enrolledTotal: row.age11EnrolledTotal,
+        enrolledFemale: row.age11EnrolledFemale
+      };
+    case '12+':
+      return {
+        censusTotal: row.age12PlusCensusTotal,
+        censusFemale: row.age12PlusCensusFemale,
+        enrolledTotal: row.age12PlusEnrolledTotal,
+        enrolledFemale: row.age12PlusEnrolledFemale
+      };
+    default:
+      return null;
+  }
+}
+
+function extractFromPreschoolRow(row: VillageComparisonRow, ageKey: string) {
+  switch (ageKey) {
+    case '3':
+      return {
+        censusTotal: row.age3Total,
+        censusFemale: row.age3Female,
+        enrolledTotal: row.enrolled3Total,
+        enrolledFemale: row.enrolled3Female
+      };
+    case '4':
+      return {
+        censusTotal: row.age4Total,
+        censusFemale: row.age4Female,
+        enrolledTotal: row.enrolled4Total,
+        enrolledFemale: row.enrolled4Female
+      };
+    case '5':
+      return {
+        censusTotal: row.age5Total,
+        censusFemale: row.age5Female,
+        enrolledTotal: row.enrolled5Total,
+        enrolledFemale: row.enrolled5Female
+      };
+    default:
+      return null;
+  }
+}
+
+export function computeVillageAgeMigrationRows(params: {
+  mode: 'primary' | 'preschool' | 'all';
+  primaryRows: PrimaryVillageComparisonRow[];
+  preschoolRows: VillageComparisonRow[];
+  citizens: Citizen[];
+  students: StudentRecord[];
+  overrides?: VillageMigrationOverrideMap;
+  includeEmptyOutside?: boolean;
+}): VillageAgeMigrationRow[] {
+  const { mode, primaryRows, preschoolRows, citizens, students, overrides = {}, includeEmptyOutside = false } = params;
+
+  const targetKeys =
+    mode === 'preschool'
+      ? ['3', '4', '5']
+      : mode === 'primary'
+        ? ['group2', '6', '7', '8', '9', '10', '11', '12+']
+        : ['3', '4', '5', 'group2', '6', '7', '8', '9', '10', '11', '12+'];
+
+  const cohorts = ALL_AGE_COHORT_DEFS.filter(def => targetKeys.includes(def.ageKey));
+  const villageOrder: { id: VillageCategory; name: string }[] = [
+    { id: 'roak', name: 'ភូមិរោគ' },
+    { id: 'mukh_chhnang', name: 'ភូមិមុខឈ្នាង' },
+    { id: 'outside', name: 'មកពីភូមិផ្សេង (ចំណូល)' }
+  ];
+
+  const rows: VillageAgeMigrationRow[] = [];
+
+  for (const cohort of cohorts) {
+    const cohortCitizens = citizens.filter(cohort.matchesCitizen);
+    const cohortStudents = students.filter(cohort.matchesStudent);
+
+    for (const vInfo of villageOrder) {
+      const rowKey = `${mode}_${cohort.ageKey}_${vInfo.id}`;
+      const override = overrides[rowKey];
+
+      // Determine Census & Enrolled from live editable comparison rows (preserving manual table edits)
+      let censusTotal = 0;
+      let censusFemale = 0;
+      let enrolledTotal = 0;
+      let enrolledFemale = 0;
+
+      const isPreschoolAge = cohort.ageKey === '3' || cohort.ageKey === '4' || cohort.ageKey === '5';
+      if (isPreschoolAge) {
+        const preRow = preschoolRows.find(r => r.id === vInfo.id);
+        const extracted = preRow ? extractFromPreschoolRow(preRow, cohort.ageKey) : null;
+        if (extracted) {
+          censusTotal = extracted.censusTotal;
+          censusFemale = extracted.censusFemale;
+          enrolledTotal = extracted.enrolledTotal;
+          enrolledFemale = extracted.enrolledFemale;
+        }
+      } else {
+        const priRow = primaryRows.find(r => r.id === vInfo.id);
+        const extracted = priRow ? extractFromPrimaryRow(priRow, cohort.ageKey) : null;
+        if (extracted) {
+          censusTotal = extracted.censusTotal;
+          censusFemale = extracted.censusFemale;
+          enrolledTotal = extracted.enrolledTotal;
+          enrolledFemale = extracted.enrolledFemale;
+        }
+      }
+
+      // System migration signals from Citizens & Students
+      const vCitizens = vInfo.id === 'outside'
+        ? []
+        : cohortCitizens.filter(c => classifyCitizenVillage(c) === vInfo.id);
+      const vStudentsAll = cohortStudents.filter(s => classifyStudentVillage(s) === vInfo.id);
+      const vStudentsActive = vStudentsAll.filter(isActiveStudent);
+
+      const movedList = vCitizens.filter(c => c.enrollmentStatus === 'moved');
+      const notEnrolledList = vCitizens.filter(
+        c => !c.enrollmentStatus || c.enrollmentStatus === 'not_enrolled' || c.enrollmentStatus === 'contacted'
+      );
+      const transferredInList = vStudentsActive.filter(s => s.status === 'transferred_in');
+      const transferredOutList = vStudentsAll.filter(s => s.status === 'transferred_out');
+      const droppedOutList = vStudentsAll.filter(s => s.status === 'dropped_out');
+
+      const systemOutsideTotal = vInfo.id === 'outside' ? Math.max(enrolledTotal, vStudentsActive.length) : 0;
+      const systemOutsideFemale = vInfo.id === 'outside'
+        ? Math.max(enrolledFemale, vStudentsActive.filter(s => s.gender === 'ស្រី').length)
+        : 0;
+
+      const systemTransferredInTotal = transferredInList.length;
+      const systemTransferredInFemale = transferredInList.filter(s => s.gender === 'ស្រី').length;
+      const systemMovedTotal = movedList.length;
+      const systemMovedFemale = movedList.filter(s => s.gender === 'ស្រី').length;
+      const systemTransferredOutTotal = transferredOutList.length;
+      const systemTransferredOutFemale = transferredOutList.filter(s => s.gender === 'ស្រី').length;
+      const systemDroppedOutTotal = droppedOutList.length;
+      const systemDroppedOutFemale = droppedOutList.filter(s => s.gender === 'ស្រី').length;
+      const systemNotEnrolledTotal = notEnrolledList.length;
+      const systemNotEnrolledFemale = notEnrolledList.filter(s => s.gender === 'ស្រី').length;
+
+      const diffTotal = enrolledTotal - censusTotal;
+      const diffFemale = enrolledFemale - censusFemale;
+
+      const defaultInTotal = vInfo.id === 'outside'
+        ? Math.max(enrolledTotal, systemOutsideTotal)
+        : Math.max(systemTransferredInTotal, diffTotal > 0 ? diffTotal : 0);
+      const defaultInFemale = vInfo.id === 'outside'
+        ? Math.max(enrolledFemale, systemOutsideFemale)
+        : Math.max(systemTransferredInFemale, diffFemale > 0 ? diffFemale : 0);
+
+      const defaultOutTotal = systemMovedTotal + systemTransferredOutTotal + systemDroppedOutTotal;
+      const defaultOutFemale = systemMovedFemale + systemTransferredOutFemale + systemDroppedOutFemale;
+
+      const inMigrationTotal = override?.inMigrationTotal !== undefined ? override.inMigrationTotal : defaultInTotal;
+      const inMigrationFemale = override?.inMigrationFemale !== undefined ? override.inMigrationFemale : defaultInFemale;
+      const outMigrationTotal = override?.outMigrationTotal !== undefined ? override.outMigrationTotal : defaultOutTotal;
+      const outMigrationFemale = override?.outMigrationFemale !== undefined ? override.outMigrationFemale : defaultOutFemale;
+
+      // Skip completely empty outside-village rows unless requested or edited
+      if (
+        vInfo.id === 'outside' &&
+        !includeEmptyOutside &&
+        enrolledTotal === 0 &&
+        inMigrationTotal === 0 &&
+        outMigrationTotal === 0 &&
+        !override?.customReason
+      ) {
+        continue;
+      }
+
+      const rateTotal = censusTotal > 0
+        ? parseFloat(((enrolledTotal / censusTotal) * 100).toFixed(2))
+        : (enrolledTotal > 0 ? 100 : 0);
+      const rateFemale = censusFemale > 0
+        ? parseFloat(((enrolledFemale / censusFemale) * 100).toFixed(2))
+        : (enrolledFemale > 0 ? 100 : 0);
+
+      let varianceStatus: MigrationVarianceStatus = 'none';
+      if (vInfo.id === 'outside' && enrolledTotal > 0) {
+        varianceStatus = 'over';
+      } else if (censusTotal === 0 && enrolledTotal === 0) {
+        varianceStatus = 'none';
+      } else if (enrolledTotal > censusTotal) {
+        varianceStatus = 'over';
+      } else if (enrolledTotal < censusTotal) {
+        varianceStatus = 'under';
+      } else {
+        varianceStatus = 'exact';
+      }
+
+      const notEnrolledRemainingTotal = diffTotal < 0
+        ? Math.max(0, Math.abs(diffTotal) - outMigrationTotal)
+        : 0;
+      const notEnrolledRemainingFemale = diffFemale < 0
+        ? Math.max(0, Math.abs(diffFemale) - outMigrationFemale)
+        : 0;
+
+      // Construct clear Khmer reason explaining <100% or >100%
+      let autoReasonKm = '';
+      if (vInfo.id === 'outside') {
+        autoReasonKm = `>១០០% ចំណូលក្រៅភូមិ៖ សិស្សចំនួន ${enrolledTotal} នាក់ (ស្រី ${enrolledFemale}) មករៀនពីក្រៅតំបន់សេវា (គ្មានឈ្មោះក្នុងជំរឿនភូមិរោគ-មុខឈ្នាង)`;
+      } else if (varianceStatus === 'over') {
+        const surplus = diffTotal;
+        const postCensusNewcomers = Math.max(0, inMigrationTotal - systemTransferredInTotal);
+        const parts: string[] = [];
+        if (systemTransferredInTotal > 0) parts.push(`ផ្ទេរចូល ${systemTransferredInTotal} នាក់`);
+        if (postCensusNewcomers > 0) parts.push(`ចំណូលថ្មី/ក្រៅជំរឿន ${postCensusNewcomers} នាក់`);
+        if (outMigrationTotal > 0) parts.push(`ចំណាកស្រុក ${outMigrationTotal} នាក់`);
+        autoReasonKm = `>១០០% លើស +${surplus} នាក់ (${rateTotal.toFixed(1)}%)៖ មកពីចំណូលថ្មី/ផ្ទេរចូលសរុប ${inMigrationTotal} នាក់` +
+          (parts.length > 0 ? ` (${parts.join(', ')})` : '');
+      } else if (varianceStatus === 'under') {
+        const deficit = Math.abs(diffTotal);
+        const parts: string[] = [];
+        if (outMigrationTotal > 0) {
+          parts.push(`ចំណាកស្រុក/ផ្លាស់លំនៅ-ឈប់រៀន ${outMigrationTotal} នាក់`);
+        }
+        if (notEnrolledRemainingTotal > 0) {
+          parts.push(`មិនទាន់ចុះឈ្មោះ/រៀនសាលាផ្សេង ${notEnrolledRemainingTotal} នាក់`);
+        }
+        if (inMigrationTotal > 0) {
+          parts.push(`មានចំណូលចូលមកជំនួស ${inMigrationTotal} នាក់`);
+        }
+        autoReasonKm = `<១០០% ខ្វះ -${deficit} នាក់ (${rateTotal.toFixed(1)}%)៖ ${parts.join(' • ')}`;
+      } else if (varianceStatus === 'exact') {
+        autoReasonKm = `=១០០% គ្រប់តាមជំរឿន (${enrolledTotal}/${censusTotal} នាក់)` +
+          (inMigrationTotal > 0 || outMigrationTotal > 0
+            ? ` • ចំណូល ${inMigrationTotal} / ចំណាកស្រុក ${outMigrationTotal}`
+            : '');
+      } else {
+        autoReasonKm = 'គ្មានកុមារក្នុងជំរឿន និងក្នុងបញ្ជីសាលា';
+      }
+
+      rows.push({
+        rowKey,
+        mode,
+        ageKey: cohort.ageKey,
+        ageLabelKm: cohort.ageLabelKm,
+        ageLabelEn: cohort.ageLabelEn,
+        villageId: vInfo.id,
+        villageName: vInfo.name,
+        censusTotal,
+        censusFemale,
+        enrolledTotal,
+        enrolledFemale,
+        diffTotal,
+        diffFemale,
+        rateTotal,
+        rateFemale,
+        varianceStatus,
+        inMigrationTotal,
+        inMigrationFemale,
+        outMigrationTotal,
+        outMigrationFemale,
+        notEnrolledRemainingTotal,
+        notEnrolledRemainingFemale,
+        systemOutsideTotal,
+        systemOutsideFemale,
+        systemTransferredInTotal,
+        systemTransferredInFemale,
+        systemMovedTotal,
+        systemMovedFemale,
+        systemTransferredOutTotal,
+        systemTransferredOutFemale,
+        systemDroppedOutTotal,
+        systemDroppedOutFemale,
+        systemNotEnrolledTotal,
+        systemNotEnrolledFemale,
+        autoReasonKm,
+        customReason: override?.customReason || ''
+      });
+    }
+  }
+
+  return rows;
+}
+
+export function exportMigrationAnalysisToCSV(rows: VillageAgeMigrationRow[], modeLabel = 'all') {
+  const headers = [
+    'ក្រុមអាយុ',
+    'ឈ្មោះភូមិ (ជួរដេកភូមិ)',
+    'ជំរឿន (សរុប)',
+    'ជំរឿន (ស្រី)',
+    'សិស្សរៀន (សរុប)',
+    'សិស្សរៀន (ស្រី)',
+    'លំអៀង (សរុប)',
+    'លំអៀង (ស្រី)',
+    '% ចូលរៀន (សរុប)',
+    '% ចូលរៀន (ស្រី)',
+    'ស្ថានភាពភាគរយ',
+    'ចំណូល (សរុប)',
+    'ចំណូល (ស្រី)',
+    'ចំណាកស្រុក/ផ្លាស់ចេញ (សរុប)',
+    'ចំណាកស្រុក/ផ្លាស់ចេញ (ស្រី)',
+    'មិនទាន់ចុះឈ្មោះ/សាលាផ្សេង (សរុប)',
+    'មិនទាន់ចុះឈ្មោះ/សាលាផ្សេង (ស្រី)',
+    'មូលហេតុ (<១០០% / >១០០%)',
+    'កំណត់សំគាល់បន្ថែម'
+  ];
+
+  const statusText = (r: VillageAgeMigrationRow) => {
+    if (r.villageId === 'outside') return '>100% (ចំណូលក្រៅភូមិ)';
+    if (r.varianceStatus === 'over') return '>100% (លើស/ចំណូល)';
+    if (r.varianceStatus === 'under') return '<100% (ខ្វះ)';
+    if (r.varianceStatus === 'exact') return '=100% (គ្រប់)';
+    return 'គ្មានទិន្នន័យ';
+  };
+
+  const lines = rows.map(r => [
+    `"${r.ageLabelKm}"`,
+    `"${r.villageName}"`,
+    r.censusTotal,
+    r.censusFemale,
+    r.enrolledTotal,
+    r.enrolledFemale,
+    r.diffTotal,
+    r.diffFemale,
+    r.villageId === 'outside' ? '"ចំណូលក្រៅភូមិ"' : `"${r.rateTotal.toFixed(2)}%"`,
+    r.villageId === 'outside' ? '"—"' : `"${r.rateFemale.toFixed(2)}%"`,
+    `"${statusText(r)}"`,
+    r.inMigrationTotal,
+    r.inMigrationFemale,
+    r.outMigrationTotal,
+    r.outMigrationFemale,
+    r.notEnrolledRemainingTotal,
+    r.notEnrolledRemainingFemale,
+    `"${r.autoReasonKm.replace(/"/g, '""')}"`,
+    `"${(r.customReason || '').replace(/"/g, '""')}"`
+  ].join(','));
+
+  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...lines].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `village-age-migration-reasons-${modeLabel}-2026-2027.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 

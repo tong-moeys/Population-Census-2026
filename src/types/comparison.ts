@@ -266,3 +266,56 @@ export interface PrimaryGrandTotal {
   age12PlusEnrolledFemale: number;
 }
 
+export type VillageCategory = 'roak' | 'mukh_chhnang' | 'outside';
+
+export type MigrationVarianceStatus = 'under' | 'exact' | 'over' | 'none';
+
+export interface VillageMigrationOverride {
+  inMigrationTotal?: number;
+  inMigrationFemale?: number;
+  outMigrationTotal?: number;
+  outMigrationFemale?: number;
+  customReason?: string;
+}
+
+export type VillageMigrationOverrideMap = Record<string, VillageMigrationOverride>;
+
+export interface VillageAgeMigrationRow {
+  rowKey: string;
+  mode: 'primary' | 'preschool' | 'all';
+  ageKey: string;
+  ageLabelKm: string;
+  ageLabelEn: string;
+  villageId: VillageCategory;
+  villageName: string;
+  censusTotal: number;
+  censusFemale: number;
+  enrolledTotal: number;
+  enrolledFemale: number;
+  diffTotal: number;
+  diffFemale: number;
+  rateTotal: number;
+  rateFemale: number;
+  varianceStatus: MigrationVarianceStatus;
+  inMigrationTotal: number;
+  inMigrationFemale: number;
+  outMigrationTotal: number;
+  outMigrationFemale: number;
+  notEnrolledRemainingTotal: number;
+  notEnrolledRemainingFemale: number;
+  systemOutsideTotal: number;
+  systemOutsideFemale: number;
+  systemTransferredInTotal: number;
+  systemTransferredInFemale: number;
+  systemMovedTotal: number;
+  systemMovedFemale: number;
+  systemTransferredOutTotal: number;
+  systemTransferredOutFemale: number;
+  systemDroppedOutTotal: number;
+  systemDroppedOutFemale: number;
+  systemNotEnrolledTotal: number;
+  systemNotEnrolledFemale: number;
+  autoReasonKm: string;
+  customReason: string;
+}
+

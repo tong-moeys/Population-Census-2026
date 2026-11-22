@@ -1,50 +1,46 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  Table as TableIcon, 
   Download, 
   Printer, 
   RotateCcw, 
   Save, 
-  Plus, 
-  Trash2, 
   CheckCircle2, 
-  Info, 
-  Sparkles, 
   School, 
   MapPin, 
   Edit3, 
-  Layers, 
-  Check, 
   Users, 
   GraduationCap, 
   Baby, 
-  AlertCircle,
   RefreshCw,
-  FileSpreadsheet,
   BarChart3,
-  TrendingUp,
   Award,
   Eye,
   HeartHandshake,
   UserCheck,
   UserX,
   Search,
-  ExternalLink
+  ArrowDownRight,
+  ArrowUpRight,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Citizen, Language } from '../types/census';
 import { StudentRecord } from '../types/student';
 import { 
   VillageComparisonRow, 
-  PrimaryVillageComparisonRow 
+  PrimaryVillageComparisonRow,
+  VillageMigrationOverride,
+  VillageMigrationOverrideMap,
+  VillageAgeMigrationRow
 } from '../types/comparison';
 import { 
   loadSavedComparisonRows, 
   saveComparisonRows, 
   computeRowRates, 
   computeGrandTotal, 
-  populateCensusFromCitizens, 
-  populateEnrolledFromStudents, 
+  generatePreschoolBaseline,
+  syncPreschoolRowsWithSystemData,
   exportComparisonToCSV,
   DEFAULT_COMPARISON_ROWS,
   loadSavedPrimaryComparisonRows,
@@ -52,12 +48,104 @@ import {
   computePrimaryRowRates,
   computePrimaryGrandTotal,
   generatePrimaryBaseline,
+  syncPrimaryRowsWithSystemData,
   exportPrimaryComparisonToCSV,
-  computeSchoolWideStatistics
+  computeSchoolWideStatistics,
+  loadMigrationOverrides,
+  saveMigrationOverrides,
+  computeVillageAgeMigrationRows,
+  exportMigrationAnalysisToCSV
 } from '../utils/comparisonData';
 import { calculateAgeInMonths } from '../utils/enrollmentUtils';
 import { OfficialReportHeader } from './OfficialReportHeader';
 import { OfficialSignatureSection } from './OfficialSignatureSection';
+
+const PRIMARY_AGE_COHORTS = [
+  {
+    age: 6,
+    labelKm: '៦ ឆ្នាំ',
+    labelEn: 'Age 6',
+    censusTotalKey: 'age6CensusTotal',
+    censusFemaleKey: 'age6CensusFemale',
+    enrolledTotalKey: 'age6EnrolledTotal',
+    enrolledFemaleKey: 'age6EnrolledFemale',
+    remainingTotalKey: 'age6RemainingTotal',
+    remainingFemaleKey: 'age6RemainingFemale',
+    rateTotalKey: 'age6RateTotal',
+    rateFemaleKey: 'age6RateFemale',
+    headerBg: 'bg-blue-50 text-blue-950'
+  },
+  {
+    age: 7,
+    labelKm: '៧ ឆ្នាំ',
+    labelEn: 'Age 7',
+    censusTotalKey: 'age7CensusTotal',
+    censusFemaleKey: 'age7CensusFemale',
+    enrolledTotalKey: 'age7EnrolledTotal',
+    enrolledFemaleKey: 'age7EnrolledFemale',
+    remainingTotalKey: 'age7RemainingTotal',
+    remainingFemaleKey: 'age7RemainingFemale',
+    rateTotalKey: 'age7RateTotal',
+    rateFemaleKey: 'age7RateFemale',
+    headerBg: 'bg-sky-50 text-sky-950'
+  },
+  {
+    age: 8,
+    labelKm: '៨ ឆ្នាំ',
+    labelEn: 'Age 8',
+    censusTotalKey: 'age8CensusTotal',
+    censusFemaleKey: 'age8CensusFemale',
+    enrolledTotalKey: 'age8EnrolledTotal',
+    enrolledFemaleKey: 'age8EnrolledFemale',
+    remainingTotalKey: 'age8RemainingTotal',
+    remainingFemaleKey: 'age8RemainingFemale',
+    rateTotalKey: 'age8RateTotal',
+    rateFemaleKey: 'age8RateFemale',
+    headerBg: 'bg-blue-50 text-blue-950'
+  },
+  {
+    age: 9,
+    labelKm: '៩ ឆ្នាំ',
+    labelEn: 'Age 9',
+    censusTotalKey: 'age9CensusTotal',
+    censusFemaleKey: 'age9CensusFemale',
+    enrolledTotalKey: 'age9EnrolledTotal',
+    enrolledFemaleKey: 'age9EnrolledFemale',
+    remainingTotalKey: 'age9RemainingTotal',
+    remainingFemaleKey: 'age9RemainingFemale',
+    rateTotalKey: 'age9RateTotal',
+    rateFemaleKey: 'age9RateFemale',
+    headerBg: 'bg-sky-50 text-sky-950'
+  },
+  {
+    age: 10,
+    labelKm: '១០ ឆ្នាំ',
+    labelEn: 'Age 10',
+    censusTotalKey: 'age10CensusTotal',
+    censusFemaleKey: 'age10CensusFemale',
+    enrolledTotalKey: 'age10EnrolledTotal',
+    enrolledFemaleKey: 'age10EnrolledFemale',
+    remainingTotalKey: 'age10RemainingTotal',
+    remainingFemaleKey: 'age10RemainingFemale',
+    rateTotalKey: 'age10RateTotal',
+    rateFemaleKey: 'age10RateFemale',
+    headerBg: 'bg-blue-50 text-blue-950'
+  },
+  {
+    age: 11,
+    labelKm: '១១ ឆ្នាំ',
+    labelEn: 'Age 11',
+    censusTotalKey: 'age11CensusTotal',
+    censusFemaleKey: 'age11CensusFemale',
+    enrolledTotalKey: 'age11EnrolledTotal',
+    enrolledFemaleKey: 'age11EnrolledFemale',
+    remainingTotalKey: 'age11RemainingTotal',
+    remainingFemaleKey: 'age11RemainingFemale',
+    rateTotalKey: 'age11RateTotal',
+    rateFemaleKey: 'age11RateFemale',
+    headerBg: 'bg-sky-50 text-sky-950'
+  }
+] as const;
 
 interface ComparisonTableViewProps {
   citizens: Citizen[];
@@ -76,13 +164,13 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   onSaveToCloud,
   onSelectCitizen
 }) => {
-  // Mode: Primary 6+ / Group 2 (User's new request) | Pre-school 3-5 (Previous request) | Whole School Stats
+  // Mode: Primary 6+ / Group 2 | Pre-school 3-5 | Whole School Stats
   const [activeMode, setActiveMode] = useState<'primary' | 'preschool' | 'school-stats'>('primary');
 
   // Pre-school 3-5 Years Data State
   const [preschoolRows, setPreschoolRows] = useState<VillageComparisonRow[]>(() => loadSavedComparisonRows());
 
-  // Primary 6+ Years & Group 2 Data State
+  // Primary 6+ Years & Group 2 Data State (Auto-populated from citizens & students)
   const [primaryRows, setPrimaryRows] = useState<PrimaryVillageComparisonRow[]>(() => 
     loadSavedPrimaryComparisonRows(citizens, students)
   );
@@ -90,6 +178,30 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isCloudSaving, setIsCloudSaving] = useState(false);
   const [remainingSearchQuery, setRemainingSearchQuery] = useState('');
+  const [migrationOverrides, setMigrationOverrides] = useState<VillageMigrationOverrideMap>(() => loadMigrationOverrides());
+  const [migrationAgeFilter, setMigrationAgeFilter] = useState<string>('all');
+  const [migrationStatusFilter, setMigrationStatusFilter] = useState<'all' | 'under' | 'over' | 'exact'>('all');
+  const [includeEmptyOutside, setIncludeEmptyOutside] = useState<boolean>(false);
+  const isInitialMountRef = useRef(true);
+
+  // Sync live census and student updates into comparison rows when source records change
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+    setPrimaryRows(prev => syncPrimaryRowsWithSystemData(prev, citizens, students, true));
+    setPreschoolRows(prev => syncPreschoolRowsWithSystemData(prev, citizens, students, true));
+  }, [citizens, students]);
+
+  // Reset age filter tab safely if switching between Preschool and Primary modes
+  useEffect(() => {
+    if (activeMode === 'preschool' && !['all', '3', '4', '5'].includes(migrationAgeFilter)) {
+      setMigrationAgeFilter('all');
+    } else if (activeMode === 'primary' && ['3', '4', '5'].includes(migrationAgeFilter)) {
+      setMigrationAgeFilter('all');
+    }
+  }, [activeMode, migrationAgeFilter]);
 
   // Auto-save preschool rows to localStorage
   useEffect(() => {
@@ -100,6 +212,11 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   useEffect(() => {
     savePrimaryComparisonRows(primaryRows);
   }, [primaryRows]);
+
+  // Auto-save migration overrides to localStorage
+  useEffect(() => {
+    saveMigrationOverrides(migrationOverrides);
+  }, [migrationOverrides]);
 
   // Recalculate Grand Totals
   const preschoolGrandTotal = useMemo(() => {
@@ -114,6 +231,59 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   const schoolStats = useMemo(() => {
     return computeSchoolWideStatistics(students, citizens);
   }, [students, citizens]);
+
+  // Horizontal Village × Age Migration & <100% / >100% Cause Analysis
+  const migrationMode: 'primary' | 'preschool' | 'all' =
+    activeMode === 'school-stats' ? 'all' : activeMode;
+
+  const allMigrationRows = useMemo(() => {
+    return computeVillageAgeMigrationRows({
+      mode: migrationMode,
+      primaryRows,
+      preschoolRows,
+      citizens,
+      students,
+      overrides: migrationOverrides,
+      includeEmptyOutside
+    });
+  }, [migrationMode, primaryRows, preschoolRows, citizens, students, migrationOverrides, includeEmptyOutside]);
+
+  const migrationAgeTabs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of allMigrationRows) {
+      if (!seen.has(r.ageKey)) seen.set(r.ageKey, r.ageLabelKm);
+    }
+    return Array.from(seen.entries()).map(([ageKey, ageLabelKm]) => ({ ageKey, ageLabelKm }));
+  }, [allMigrationRows]);
+
+  const filteredMigrationRows = useMemo(() => {
+    return allMigrationRows.filter(r => {
+      if (migrationAgeFilter !== 'all' && r.ageKey !== migrationAgeFilter) return false;
+      if (migrationStatusFilter !== 'all' && r.varianceStatus !== migrationStatusFilter) return false;
+      return true;
+    });
+  }, [allMigrationRows, migrationAgeFilter, migrationStatusFilter]);
+
+  const groupedMigrationSections = useMemo(() => {
+    const groups = new Map<string, { ageKey: string; ageLabelKm: string; rows: VillageAgeMigrationRow[] }>();
+    for (const r of filteredMigrationRows) {
+      if (!groups.has(r.ageKey)) {
+        groups.set(r.ageKey, { ageKey: r.ageKey, ageLabelKm: r.ageLabelKm, rows: [] });
+      }
+      groups.get(r.ageKey)!.rows.push(r);
+    }
+    return Array.from(groups.values());
+  }, [filteredMigrationRows]);
+
+  const migrationSummaryTotals = useMemo(() => {
+    const underCount = allMigrationRows.filter(r => r.varianceStatus === 'under').length;
+    const overCount = allMigrationRows.filter(r => r.varianceStatus === 'over').length;
+    const exactCount = allMigrationRows.filter(r => r.varianceStatus === 'exact').length;
+    const totalIn = allMigrationRows.reduce((s, r) => s + r.inMigrationTotal, 0);
+    const totalOut = allMigrationRows.reduce((s, r) => s + r.outMigrationTotal, 0);
+    const totalNotEnrolled = allMigrationRows.reduce((s, r) => s + r.notEnrolledRemainingTotal, 0);
+    return { underCount, overCount, exactCount, totalIn, totalOut, totalNotEnrolled };
+  }, [allMigrationRows]);
 
   // Out-of-School Group 2 Children (for direct mobilization list)
   const remainingGroup2Children = useMemo(() => {
@@ -204,6 +374,41 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
     }
   };
 
+  const handleSyncPreschoolFromData = () => {
+    const fresh = generatePreschoolBaseline(citizens, students);
+    setPreschoolRows(fresh);
+    saveComparisonRows(fresh);
+    triggerSaveToast();
+  };
+
+  // Handlers for Village × Age Migration Overrides
+  const handleMigrationOverrideChange = (
+    rowKey: string,
+    field: keyof VillageMigrationOverride,
+    rawValue: string
+  ) => {
+    setMigrationOverrides(prev => {
+      const existing = prev[rowKey] || {};
+      if (field === 'customReason') {
+        return {
+          ...prev,
+          [rowKey]: { ...existing, customReason: rawValue }
+        };
+      }
+      const parsed = rawValue.trim() === '' ? undefined : Math.max(0, parseInt(rawValue, 10) || 0);
+      return {
+        ...prev,
+        [rowKey]: { ...existing, [field]: parsed }
+      };
+    });
+  };
+
+  const handleResetMigrationOverrides = () => {
+    setMigrationOverrides({});
+    saveMigrationOverrides({});
+    triggerSaveToast();
+  };
+
   const triggerSaveToast = () => {
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
@@ -235,7 +440,20 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   };
 
   // Color helper for enrollment rates
-  const getRateBadge = (rate: number, isFemale = false) => {
+  const getRateBadge = (rate: number, _isFemale = false, outsideEnrolled?: number) => {
+    if (outsideEnrolled !== undefined) {
+      if (outsideEnrolled > 0) {
+        return (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300"
+            title="សិស្សចំណូលមកពីភូមិក្រៅតំបន់សេវា"
+          >
+            +{outsideEnrolled}
+          </span>
+        );
+      }
+      return <span className="text-[10px] text-slate-400">—</span>;
+    }
     if (rate === 0) {
       return (
         <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-500">
@@ -281,7 +499,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
       <OfficialReportHeader
         title={
           activeMode === 'primary'
-            ? 'តារាងប្រៀបធៀបទិន្នន័យកុមារបឋមសិក្សា (៦ ឆ្នាំឡើង & ក្រុម២ ថ្នាក់ទី១)'
+            ? 'តារាងប្រៀបធៀបទិន្នន័យកុមារបឋមសិក្សា (តាមអាយុ ៦ ឆ្នាំឡើង & ក្រុម២)'
             : activeMode === 'preschool'
               ? 'តារាងប្រៀបធៀបទិន្នន័យកុមារមត្តេយ្យសិក្សា (៣-៥ ឆ្នាំ ក្រុម១)'
               : 'របាយការណ៍ស្ថិតិទូទាំងសាលារៀន និងប្រៀបធៀបកុមារក្នុងតំបន់សេវា'
@@ -293,7 +511,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
       {/* Mode Selector Tab Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl shadow-xs border border-slate-200 no-print">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Tab 1: Primary School 6+ & Group 2 (Requested Focus) */}
+          {/* Tab 1: Primary School 6+ & Group 2 (By Age Only) */}
           <button
             onClick={() => setActiveMode('primary')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
@@ -303,11 +521,11 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
             }`}
           >
             <GraduationCap className="w-4 h-4" />
-            <span>{language === 'km' ? 'បឋមសិក្សា (៦ ឆ្នាំឡើង & ក្រុម២)' : 'Primary School (Age 6+ & Group 2)'}</span>
+            <span>{language === 'km' ? 'បឋមសិក្សា (តាមអាយុ ៦ ឆ្នាំឡើង & ក្រុម២)' : 'Primary School (By Age 6+ & Group 2)'}</span>
             <span className={`px-2 py-0.5 text-[11px] rounded-full font-black ${
               activeMode === 'primary' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-900'
             }`}>
-              {language === 'km' ? 'ថ្នាក់ទី១-៦' : 'Grades 1-6'}
+              {language === 'km' ? 'អាយុ ៦-១២+' : 'Ages 6-12+'}
             </span>
           </button>
 
@@ -329,7 +547,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
             </span>
           </button>
 
-          {/* Tab 3: Whole-School Statistics (User's special request) */}
+          {/* Tab 3: Whole-School Statistics */}
           <button
             onClick={() => setActiveMode('school-stats')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
@@ -355,7 +573,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
               <button
                 onClick={handleSyncPrimaryFromData}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition"
-                title="ទាញយកទិន្នន័យស្រស់ពីបញ្ជីសិស្ស និងជំរឿន"
+                title="ទាញយកទិន្នន័យស្រស់ពីបញ្ជីប្រជាជន និងបញ្ជីសិស្ស"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{language === 'km' ? 'ទាញពីប្រព័ន្ធ' : 'Refresh from Data'}</span>
@@ -373,6 +591,14 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
 
           {activeMode === 'preschool' && (
             <>
+              <button
+                onClick={handleSyncPreschoolFromData}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
+                title="ទាញយកទិន្នន័យស្រស់ពីបញ្ជីប្រជាជន និងបញ្ជីសិស្ស"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{language === 'km' ? 'ទាញពីប្រព័ន្ធ' : 'Refresh from Data'}</span>
+              </button>
               <button
                 onClick={handleResetPreschoolToBaseline}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition"
@@ -435,29 +661,29 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-200 border border-amber-400/30">
                     <Award className="w-3.5 h-3.5 text-amber-300" />
-                    <span>{language === 'km' ? 'កុមារក្រុម២ (៧០-៨២ ខែ / ៦ឆ្នាំ) ចូលថ្នាក់ទី១' : 'Group 2: Grade 1 Intake'}</span>
+                    <span>{language === 'km' ? 'រាប់តាមអាយុពិត (៦-១២+ ឆ្នាំ & ក្រុម២ ៧០-៨២ ខែ)' : 'Counted strictly by exact Age'}</span>
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-200 border border-cyan-400/30">
                     <Edit3 className="w-3.5 h-3.5 text-cyan-300" />
-                    <span>{language === 'km' ? 'ជួរឈរពណ៌បៃតង អាចវាយបញ្ចូលទិន្នន័យផ្ទាល់' : 'Green inputs are directly editable'}</span>
+                    <span>{language === 'km' ? 'ជួរឈរពណ៌បៃតង អាចវាយបញ្ចូលទិន្នន័យផ្ទាល់ (សរុប & ស្រី)' : 'Green inputs (Total & Female) are editable'}</span>
                   </span>
                 </div>
 
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2 pt-1">
-                  <span>{language === 'km' ? 'តារាងប្រៀបធៀបកុមារបឋមសិក្សា (៦ ឆ្នាំឡើង & ក្រុម២)' : 'Primary School Catchment Comparison (Age 6+ & Group 2)'}</span>
+                  <span>{language === 'km' ? 'តារាងប្រៀបធៀបកុមារបឋមសិក្សា តាមអាយុ (៦ ឆ្នាំឡើង & ក្រុម២)' : 'Primary School Catchment Comparison by Age (6+ & Group 2)'}</span>
                 </h2>
 
                 <p className="text-sm text-blue-200/90 max-w-3xl leading-relaxed">
                   {language === 'km'
-                    ? 'តារាងនេះផ្ទៀងផ្ទាត់រវាងទិន្នន័យជំរឿនពិត និងចំនួនសិស្សដែលកំពុងរៀននៅសាលា។ វាស់វែងយ៉ាងច្បាស់លាស់ថាកុមារ ក្រុម២ (អាយុ ៧០-៨២ខែ) បានចុះឈ្មោះចូលរៀនប៉ុន្មាននាក់ និងនៅសល់ប៉ុន្មាននាក់ដែលត្រូវប្រមូលមកចូលរៀនថ្នាក់ទី១ ព្រមទាំងស្ថិតិកុមារអាយុ ៦ ដល់ ១១+ ឆ្នាំ។'
-                    : 'This table tracks Group 2 children (70-82 months) entering Grade 1 against actual census data, calculating enrolled, remaining out-of-school, and enrollment rates by village.'}
+                    ? 'តារាងនេះទាញទិន្នន័យប្រជាជន ជំរឿន និងចំនួនសិស្សកំពុងរៀនដោយស្វ័យប្រវត្តិ ផ្ទៀងផ្ទាត់តាមអាយុពិត (៦ ឆ្នាំ ដល់ ១២+ ឆ្នាំ និងក្រុម២ អាយុ ៧០-៨២ ខែ) ដោយមានជួរឈរ "សរុប" និង "ស្រី" គ្រប់ផ្នែកទាំងអស់។'
+                    : 'This table automatically pulls population, census, and active students by exact age (Ages 6 to 12+ and Group 2: 70-82 months) with Total and Female breakdown on every metric column.'}
                 </p>
               </div>
 
               {/* Group 2 Key Metric Indicator */}
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 self-start lg:self-auto min-w-[240px]">
                 <div className="flex items-center justify-between text-xs text-blue-200 font-semibold mb-1">
-                  <span>{language === 'km' ? 'កុមារក្រុម២ ថ្នាក់ទី១' : 'Group 2 Grade 1'}</span>
+                  <span>{language === 'km' ? 'កុមារក្រុម២ (៧០-៨២ ខែ)' : 'Group 2 (70-82 Mos)'}</span>
                   <span className="text-emerald-300 font-bold">{primaryGrandTotal.group2RateTotal.toFixed(1)}%</span>
                 </div>
                 <div className="text-2xl font-black text-white flex items-baseline gap-2">
@@ -536,7 +762,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
               <div className="bg-indigo-500/20 backdrop-blur-xs rounded-xl p-3 border border-indigo-400/30">
                 <div className="flex items-center gap-1.5 text-xs text-indigo-200 font-semibold">
                   <GraduationCap className="w-4 h-4 text-indigo-300" />
-                  <span>{language === 'km' ? 'កុមារបឋម (៦-១១ ឆ្នាំ)' : 'Primary Age 6-11'}</span>
+                  <span>{language === 'km' ? 'កុមារអាយុ ៦-១១ ឆ្នាំ' : 'Ages 6-11 Total'}</span>
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-2xl font-black text-white">{primaryGrandTotal.primaryEnrolledTotal}</span>
@@ -545,7 +771,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                   </span>
                 </div>
                 <p className="text-[10px] text-indigo-300 mt-0.5">
-                  {language === 'km' ? `នៅសល់ទូទាំងបឋម៖ ${primaryGrandTotal.primaryRemainingTotal} នាក់` : `Total remaining: ${primaryGrandTotal.primaryRemainingTotal}`}
+                  {language === 'km' ? `ស្រីរៀន៖ ${primaryGrandTotal.primaryEnrolledFemale} / នៅសល់៖ ${primaryGrandTotal.primaryRemainingTotal}` : `Female: ${primaryGrandTotal.primaryEnrolledFemale} | Rem: ${primaryGrandTotal.primaryRemainingTotal}`}
                 </p>
               </div>
             </div>
@@ -558,15 +784,15 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                 <span className="w-3 h-3 rounded-full bg-blue-600" />
                 <h3 className="font-bold text-slate-900 text-sm sm:text-base print:text-xs">
                   {language === 'km' 
-                    ? 'តារាងប្រៀបធៀប៖ កុមារក្រុម២ (៧០-៨២ ខែ) និងកុមារបឋមសិក្សា (៦ ឆ្នាំឡើង)' 
-                    : 'Comparison Table: Group 2 Children (70-82 Mos) & Primary Cohorts (Age 6+)'}
+                    ? 'តារាងប្រៀបធៀបតាមអាយុ៖ កុមារក្រុម២ (៧០-៨២ ខែ) និងអាយុ ៦ ដល់ ១២+ ឆ្នាំ (សរុប / ស្រី)' 
+                    : 'Age-Based Comparison Table: Group 2 (70-82 Mos) & Ages 6 to 12+ (Total / Female)'}
                 </h3>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 no-print">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-400" />
-                  <span>{language === 'km' ? 'សិស្សបានចុះឈ្មោះ (អាចបញ្ចូលទិន្នន័យ)' : 'Enrolled (Editable inputs)'}</span>
+                  <span>{language === 'km' ? 'សិស្សរៀន (សរុប/ស្រី អាចកែសម្រួលបាន)' : 'Enrolled (Total/Female Editable)'}</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" />
@@ -584,148 +810,121 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                 <thead>
                   {/* LEVEL 1 HEADERS */}
                   <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
-                    <th rowSpan={3} className="py-1 px-1.5 text-left border-r border-slate-300 min-w-[115px] sticky left-0 bg-slate-100 z-20">
+                    <th rowSpan={3} className="py-1 px-1.5 text-left border-r border-slate-300 min-w-[110px] sticky left-0 bg-slate-100 z-20 print:static">
                       {language === 'km' ? 'ឈ្មោះភូមិរដ្ឋបាលចំណុះ' : 'Feeder Village'}
                     </th>
-                    <th colSpan={2} rowSpan={2} className="p-2 border-r border-slate-300 bg-slate-50">
+                    <th colSpan={2} rowSpan={2} className="p-1.5 border-r border-slate-300 bg-slate-50">
                       {language === 'km' ? 'ចំនួនប្រជាជន' : 'Population'}
                     </th>
-                    <th rowSpan={3} className="p-2 border-r border-slate-300 bg-slate-50 min-w-[65px]">
+                    <th rowSpan={3} className="p-1.5 border-r border-slate-300 bg-slate-50 min-w-[56px]">
                       {language === 'km' ? 'គ្រួសារ' : 'Households'}
                     </th>
 
                     {/* Group 2 Main Section (8 columns) */}
-                    <th colSpan={8} className="p-2 border-r border-slate-300 bg-indigo-100 text-indigo-950 border-l-2 border-indigo-500 font-black">
-                      {language === 'km' ? 'កុមារក្រុម២ (៧០-៨២ ខែ / ៦ឆ្នាំ) ចូលថ្នាក់ទី១' : 'Group 2 Children (70-82 Mos) Grade 1 Intake'}
+                    <th colSpan={8} className="p-1.5 border-r border-slate-300 bg-indigo-100 text-indigo-950 border-l-2 border-indigo-500 font-black">
+                      {language === 'km' ? 'កុមារក្រុម២ (៧០-៨២ ខែ)' : 'Group 2 Children (70-82 Mos)'}
                     </th>
 
-                    {/* Primary Ages: 6, 7, 8, 9, 10, 11 (4 columns each: Census, Enrolled, Remaining, %) */}
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ៦ ឆ្នាំ (ថ្នាក់ទី១)
-                    </th>
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ៧ ឆ្នាំ (ថ្នាក់ទី២)
-                    </th>
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ៨ ឆ្នាំ (ថ្នាក់ទី៣)
-                    </th>
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ៩ ឆ្នាំ (ថ្នាក់ទី៤)
-                    </th>
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ១០ ឆ្នាំ (ថ្នាក់ទី៥)
-                    </th>
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-blue-50 text-blue-950 font-bold">
-                      ១១ ឆ្នាំ (ថ្នាក់ទី៦)
-                    </th>
+                    {/* Primary Ages: 6, 7, 8, 9, 10, 11 (8 columns each: ជំរឿន សរុប|ស្រី, រៀន សរុប|ស្រី, នៅសល់ សរុប|ស្រី, % សរុប|ស្រី) */}
+                    {PRIMARY_AGE_COHORTS.map(cohort => (
+                      <th
+                        key={cohort.age}
+                        colSpan={8}
+                        className={`p-1.5 border-r border-slate-300 border-l-2 border-l-blue-400 font-black ${cohort.headerBg}`}
+                      >
+                        {language === 'km' ? cohort.labelKm : cohort.labelEn}
+                      </th>
+                    ))}
 
                     {/* Primary School Total (8 columns) */}
-                    <th colSpan={8} className="p-2 border-r border-slate-300 bg-emerald-100 text-emerald-950 border-l-2 border-emerald-500 font-black">
+                    <th colSpan={8} className="p-1.5 border-r border-slate-300 bg-emerald-100 text-emerald-950 border-l-2 border-emerald-500 font-black">
                       {language === 'km' ? 'សរុបកុមារបឋមសិក្សា (៦-១១ ឆ្នាំ)' : 'Total Primary (Ages 6-11)'}
                     </th>
 
                     {/* Age 12+ (4 columns) */}
-                    <th colSpan={4} className="p-2 border-r border-slate-300 bg-slate-100 text-slate-800">
+                    <th colSpan={4} className="p-1.5 border-r border-slate-300 bg-slate-200/70 text-slate-900 border-l-2 border-l-slate-400 font-bold">
                       {language === 'km' ? '១២ ឆ្នាំឡើង' : '12+ Years'}
                     </th>
 
-                    <th rowSpan={3} className="p-2 bg-slate-50 min-w-[150px]">
+                    <th rowSpan={3} className="p-1.5 bg-slate-50 min-w-[140px]">
                       {language === 'km' ? 'កំណត់សំគាល់' : 'Remarks'}
                     </th>
                   </tr>
 
                   {/* LEVEL 2 HEADERS */}
-                  <tr className="bg-slate-50 text-slate-700 border-b border-slate-300 font-bold text-[11px]">
-                    {/* Group 2 Subheaders */}
-                    <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-indigo-50 border-l-2 border-indigo-500 text-indigo-900">ជំរឿនពិត</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-emerald-100 text-emerald-950 font-black">បានចុះឈ្មោះ (បញ្ចូល)</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-rose-50 text-rose-900">នៅសល់មិនទាន់ចុះ</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-blue-100 text-blue-950 font-black">% ចូលរៀន</th>
+                  <tr className="bg-slate-50 text-slate-700 border-b border-slate-300 font-bold text-[10px]">
+                    {/* Group 2 Subheaders (8 cols) */}
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-indigo-50 border-l-2 border-indigo-500 text-indigo-900">ជំរឿនពិត</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-emerald-100 text-emerald-950 font-black">សិស្សរៀន</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-rose-50 text-rose-900">នៅសល់</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-blue-100 text-blue-950 font-black">% ចូលរៀន</th>
 
-                    {/* Age 6 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
-
-                    {/* Age 7 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
-
-                    {/* Age 8 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
-
-                    {/* Age 9 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
-
-                    {/* Age 10 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
-
-                    {/* Age 11 */}
-                    <th className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">រៀន</th>
-                    <th className="p-1 border-r border-slate-200 text-amber-700">នៅសល់</th>
-                    <th className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
+                    {/* Age 6 to 11 Subheaders (8 cols each) */}
+                    {PRIMARY_AGE_COHORTS.map(cohort => (
+                      <React.Fragment key={cohort.age}>
+                        <th colSpan={2} className="p-1 border-r border-slate-200 border-l-2 border-l-blue-400 bg-slate-50">ជំរឿន</th>
+                        <th colSpan={2} className="p-1 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">សិស្សរៀន</th>
+                        <th colSpan={2} className="p-1 border-r border-slate-200 bg-amber-50/70 text-amber-800">នៅសល់</th>
+                        <th colSpan={2} className="p-1 border-r border-slate-300 bg-blue-50 font-bold">%</th>
+                      </React.Fragment>
+                    ))}
 
                     {/* Primary Total (8 columns) */}
-                    <th colSpan={2} className="p-1.5 border-r border-slate-200 bg-emerald-50 border-l-2 border-emerald-500 font-bold">ជំរឿនសរុប</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-200 bg-emerald-100 font-black text-emerald-950">បានចុះឈ្មោះ</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-200 bg-rose-50 text-rose-900 font-bold">នៅសល់សរុប</th>
-                    <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-blue-100 text-blue-950 font-black">% ចូលរៀនសរុប</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-200 bg-emerald-50 border-l-2 border-emerald-500 font-bold">ជំរឿនសរុប</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-emerald-950">សិស្សរៀន</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-200 bg-rose-50 text-rose-900 font-bold">នៅសល់សរុប</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-blue-100 text-blue-950 font-black">% ចូលរៀន</th>
 
                     {/* 12+ Years */}
-                    <th colSpan={2} className="p-1 border-r border-slate-200">ជំរឿន</th>
-                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-slate-200/60 font-bold">សិស្សរៀន</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-200 border-l-2 border-l-slate-400">ជំរឿន</th>
+                    <th colSpan={2} className="p-1 border-r border-slate-300 bg-emerald-50 text-emerald-900 font-bold">សិស្សរៀន</th>
                   </tr>
 
-                  {/* LEVEL 3 HEADERS */}
-                  <tr className="bg-slate-100 text-slate-600 border-b border-slate-300 text-[10px]">
+                  {/* LEVEL 3 HEADERS: សរុប | ស្រី FOR EVERY COLUMN GROUP */}
+                  <tr className="bg-slate-100 text-slate-600 border-b border-slate-300 text-[9.5px]">
                     {/* Population */}
                     <th className="p-1 border-r border-slate-200">សរុប</th>
-                    <th className="p-1 border-r border-slate-300 text-pink-700">ស្រី</th>
+                    <th className="p-1 border-r border-slate-300 text-pink-700 font-bold">ស្រី</th>
 
                     {/* Group 2 */}
                     <th className="p-1 border-r border-slate-200 bg-indigo-50 border-l-2 border-indigo-500">សរុប</th>
-                    <th className="p-1 border-r border-slate-200 bg-indigo-50 text-pink-700">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 bg-indigo-50 text-pink-700 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-emerald-100 font-bold text-emerald-950">សរុប</th>
                     <th className="p-1 border-r border-slate-200 bg-emerald-100 text-pink-800 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-rose-50 text-rose-800 font-semibold">សរុប</th>
-                    <th className="p-1 border-r border-slate-200 bg-rose-50 text-pink-700 font-semibold">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 bg-rose-50 text-pink-700 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-blue-100 font-bold">សរុប</th>
                     <th className="p-1 border-r border-slate-300 bg-blue-100 text-pink-800 font-bold">ស្រី</th>
 
-                    {/* Age 6 to 11 gender placeholders already labeled in level 2 */}
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
-                    <th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-200"></th><th className="p-0.5 border-r border-slate-300"></th>
+                    {/* Age 6 to 11 gender columns (Total | Female on Census, Enrolled, Remaining, %) */}
+                    {PRIMARY_AGE_COHORTS.map(cohort => (
+                      <React.Fragment key={cohort.age}>
+                        <th className="p-0.5 border-r border-slate-200 border-l-2 border-l-blue-400">សរុប</th>
+                        <th className="p-0.5 border-r border-slate-200 text-pink-700 font-bold">ស្រី</th>
+                        <th className="p-0.5 border-r border-slate-200 bg-emerald-50 text-emerald-900 font-bold">សរុប</th>
+                        <th className="p-0.5 border-r border-slate-200 bg-emerald-50 text-pink-800 font-bold">ស្រី</th>
+                        <th className="p-0.5 border-r border-slate-200 bg-amber-50/70 text-amber-800">សរុប</th>
+                        <th className="p-0.5 border-r border-slate-200 bg-amber-50/70 text-pink-700 font-bold">ស្រី</th>
+                        <th className="p-0.5 border-r border-slate-200 bg-blue-50 font-semibold">សរុប</th>
+                        <th className="p-0.5 border-r border-slate-300 bg-blue-50 text-pink-800 font-bold">ស្រី</th>
+                      </React.Fragment>
+                    ))}
 
                     {/* Primary Total gender */}
                     <th className="p-1 border-r border-slate-200 bg-emerald-50 border-l-2 border-emerald-500 font-semibold">សរុប</th>
-                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-pink-700">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 bg-emerald-50 text-pink-700 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-emerald-100 font-bold text-emerald-950">សរុប</th>
                     <th className="p-1 border-r border-slate-200 bg-emerald-100 text-pink-800 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-rose-50 text-rose-800">សរុប</th>
-                    <th className="p-1 border-r border-slate-200 bg-rose-50 text-pink-700">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 bg-rose-50 text-pink-700 font-bold">ស្រី</th>
                     <th className="p-1 border-r border-slate-200 bg-blue-100 font-black">សរុប</th>
                     <th className="p-1 border-r border-slate-300 bg-blue-100 text-pink-800 font-black">ស្រី</th>
 
                     {/* 12+ Years */}
-                    <th className="p-1 border-r border-slate-200">សរុប</th><th className="p-1 border-r border-slate-200 text-pink-700">ស្រី</th>
-                    <th className="p-1 border-r border-slate-200 bg-slate-200/60 font-semibold">សរុប</th><th className="p-1 border-r border-slate-300 bg-slate-200/60 text-pink-700 font-semibold">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 border-l-2 border-l-slate-400">សរុប</th>
+                    <th className="p-1 border-r border-slate-200 text-pink-700 font-bold">ស្រី</th>
+                    <th className="p-1 border-r border-slate-200 bg-emerald-50 font-semibold text-emerald-950">សរុប</th>
+                    <th className="p-1 border-r border-slate-300 bg-emerald-50 text-pink-800 font-bold">ស្រី</th>
                   </tr>
                 </thead>
 
@@ -733,52 +932,49 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                   {primaryRows.map(row => (
                     <tr key={row.id} className="hover:bg-slate-50 transition group">
                       {/* Village Name */}
-                      <td className="py-1 px-1.5 text-left border-r border-slate-300 font-bold text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">
+                      <td className="py-1 px-1.5 text-left border-r border-slate-300 font-bold text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 print:static whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${row.villageName.includes('មុខឈ្នាង') ? 'bg-amber-500' : 'bg-blue-600'}`} />
+                          <span className={`w-2 h-2 rounded-full ${
+                            row.id === 'outside' ? 'bg-purple-600' : row.villageName.includes('មុខឈ្នាង') ? 'bg-amber-500' : 'bg-blue-600'
+                          }`} />
                           <span>{row.villageName}</span>
                         </div>
                       </td>
 
                       {/* Population */}
-                      <td className="p-1.5 border-r border-slate-200 font-semibold text-slate-800">{row.populationTotal}</td>
-                      <td className="p-1.5 border-r border-slate-300 text-pink-700">{row.populationFemale}</td>
+                      <td className="p-1 border-r border-slate-200 font-semibold text-slate-800">{row.populationTotal}</td>
+                      <td className="p-1 border-r border-slate-300 text-pink-700 font-medium">{row.populationFemale}</td>
 
                       {/* Households */}
-                      <td className="p-1.5 border-r border-slate-300 font-bold text-slate-800 bg-slate-50/50">{row.householdCount}</td>
+                      <td className="p-1 border-r border-slate-300 font-bold text-slate-800 bg-slate-50/50">{row.householdCount}</td>
 
-                      {/* ========================================================================= */}
-                      {/* GROUP 2 CHILDREN (70-82 MONTHS / GRADE 1 ENTRANCE)                       */}
-                      {/* ========================================================================= */}
-                      {/* Group 2 Census */}
+                      {/* GROUP 2 CHILDREN (70-82 MONTHS) */}
                       <td className="p-1 border-r border-slate-200 bg-indigo-50/40 font-bold text-indigo-950 border-l-2 border-indigo-500">{row.group2CensusTotal}</td>
                       <td className="p-1 border-r border-slate-200 bg-indigo-50/40 text-pink-700 font-medium">{row.group2CensusFemale}</td>
 
-                      {/* Group 2 Enrolled - EDITABLE INPUT IN GREEN */}
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50">
+                      <td className="p-0.5 border-r border-slate-200 bg-emerald-50">
                         <input
                           type="number"
                           min={0}
                           value={row.group2EnrolledTotal}
                           onChange={(e) => handlePrimaryEnrolledChange(row.id, 'group2EnrolledTotal', e.target.value)}
-                          className="w-11 text-center font-bold text-emerald-950 bg-white border border-emerald-400 rounded px-1 py-0.5 shadow-2xs focus:ring-2 focus:ring-emerald-500"
-                          title="បញ្ចូលចំនួនកុមារក្រុម២ បានចុះឈ្មោះ សរុប"
+                          className="w-9 text-center font-bold text-emerald-950 bg-white border border-emerald-400 rounded px-0.5 py-0.5 text-[10px] shadow-2xs focus:ring-2 focus:ring-emerald-500"
+                          title="បញ្ចូលចំនួនកុមារក្រុម២ សិស្សរៀន សរុប"
                         />
                       </td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50">
+                      <td className="p-0.5 border-r border-slate-200 bg-emerald-50">
                         <input
                           type="number"
                           min={0}
                           value={row.group2EnrolledFemale}
                           onChange={(e) => handlePrimaryEnrolledChange(row.id, 'group2EnrolledFemale', e.target.value)}
-                          className="w-11 text-center font-bold text-pink-800 bg-white border border-emerald-400 rounded px-1 py-0.5 shadow-2xs focus:ring-2 focus:ring-pink-500"
-                          title="បញ្ចូលចំនួនកុមារក្រុម២ បានចុះឈ្មោះ ស្រី"
+                          className="w-9 text-center font-bold text-pink-800 bg-white border border-emerald-400 rounded px-0.5 py-0.5 text-[10px] shadow-2xs focus:ring-2 focus:ring-pink-500"
+                          title="បញ្ចូលចំនួនកុមារក្រុម២ សិស្សរៀន ស្រី"
                         />
                       </td>
 
-                      {/* Group 2 Remaining Out of School */}
                       <td className="p-1 border-r border-slate-200 bg-rose-50/70 font-extrabold text-rose-900">
-                        <span className={row.group2RemainingTotal > 0 ? 'inline-block px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 font-black' : 'text-slate-400'}>
+                        <span className={row.group2RemainingTotal > 0 ? 'inline-block px-1 py-0.5 rounded bg-rose-100 text-rose-800 font-black' : 'text-slate-400'}>
                           {row.group2RemainingTotal}
                         </span>
                       </td>
@@ -786,118 +982,91 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                         {row.group2RemainingFemale}
                       </td>
 
-                      {/* Group 2 Rate % */}
-                      <td className="p-1 border-r border-slate-200 bg-blue-100">
-                        {getRateBadge(row.group2RateTotal)}
+                      <td className="p-0.5 border-r border-slate-200 bg-blue-100">
+                        {getRateBadge(row.group2RateTotal, false, row.id === 'outside' ? row.group2EnrolledTotal : undefined)}
                       </td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-100">
-                        {getRateBadge(row.group2RateFemale, true)}
+                      <td className="p-0.5 border-r border-slate-300 bg-blue-100">
+                        {getRateBadge(row.group2RateFemale, true, row.id === 'outside' ? row.group2EnrolledFemale : undefined)}
                       </td>
 
-                      {/* ========================================================================= */}
-                      {/* AGE 6 TO 11 COHORTS                                                       */}
-                      {/* ========================================================================= */}
-                      {/* Age 6 */}
-                      <td className="p-1 border-r border-slate-200">{row.age6CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age6EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age6EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age6RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age6RateTotal)}</td>
+                      {/* AGE 6 TO 11 COHORTS (With Total & Female on Census, Enrolled, Remaining, %) */}
+                      {PRIMARY_AGE_COHORTS.map(cohort => {
+                        const cTot = row[cohort.censusTotalKey];
+                        const cFem = row[cohort.censusFemaleKey];
+                        const eTot = row[cohort.enrolledTotalKey];
+                        const eFem = row[cohort.enrolledFemaleKey];
+                        const rTot = row[cohort.remainingTotalKey];
+                        const rFem = row[cohort.remainingFemaleKey];
+                        const pctTot = row[cohort.rateTotalKey];
+                        const pctFem = row[cohort.rateFemaleKey];
+                        return (
+                          <React.Fragment key={cohort.age}>
+                            <td className="p-1 border-r border-slate-200 border-l-2 border-l-blue-400 font-semibold text-slate-800">{cTot}</td>
+                            <td className="p-1 border-r border-slate-200 text-pink-700 font-medium">{cFem}</td>
 
-                      {/* Age 7 */}
-                      <td className="p-1 border-r border-slate-200">{row.age7CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age7EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age7EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age7RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age7RateTotal)}</td>
+                            <td className="p-0.5 border-r border-slate-200 bg-emerald-50/70">
+                              <input
+                                type="number"
+                                min={0}
+                                value={eTot}
+                                onChange={(e) => handlePrimaryEnrolledChange(row.id, cohort.enrolledTotalKey, e.target.value)}
+                                className="w-9 text-center font-bold text-emerald-950 bg-white/80 hover:bg-white focus:bg-white border border-emerald-300 rounded px-0.5 py-0.5 text-[10px]"
+                                title={`${cohort.labelKm} - សិស្សរៀន សរុប`}
+                              />
+                            </td>
+                            <td className="p-0.5 border-r border-slate-200 bg-emerald-50/70">
+                              <input
+                                type="number"
+                                min={0}
+                                value={eFem}
+                                onChange={(e) => handlePrimaryEnrolledChange(row.id, cohort.enrolledFemaleKey, e.target.value)}
+                                className="w-9 text-center font-bold text-pink-800 bg-white/80 hover:bg-white focus:bg-white border border-emerald-300 rounded px-0.5 py-0.5 text-[10px]"
+                                title={`${cohort.labelKm} - សិស្សរៀន ស្រី`}
+                              />
+                            </td>
 
-                      {/* Age 8 */}
-                      <td className="p-1 border-r border-slate-200">{row.age8CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age8EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age8EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age8RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age8RateTotal)}</td>
+                            <td className="p-1 border-r border-slate-200 bg-amber-50/40 text-amber-800 font-semibold">{rTot}</td>
+                            <td className="p-1 border-r border-slate-200 bg-amber-50/40 text-pink-700 font-medium">{rFem}</td>
 
-                      {/* Age 9 */}
-                      <td className="p-1 border-r border-slate-200">{row.age9CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age9EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age9EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age9RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age9RateTotal)}</td>
+                            <td className="p-0.5 border-r border-slate-200 bg-blue-50/50">{getRateBadge(pctTot, false, row.id === 'outside' ? eTot : undefined)}</td>
+                            <td className="p-0.5 border-r border-slate-300 bg-blue-50/50">{getRateBadge(pctFem, true, row.id === 'outside' ? eFem : undefined)}</td>
+                          </React.Fragment>
+                        );
+                      })}
 
-                      {/* Age 10 */}
-                      <td className="p-1 border-r border-slate-200">{row.age10CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age10EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age10EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age10RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age10RateTotal)}</td>
-
-                      {/* Age 11 */}
-                      <td className="p-1 border-r border-slate-200">{row.age11CensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/60 font-semibold text-emerald-950">
-                        <input
-                          type="number"
-                          min={0}
-                          value={row.age11EnrolledTotal}
-                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age11EnrolledTotal', e.target.value)}
-                          className="w-10 text-center font-bold text-emerald-900 bg-transparent hover:bg-white focus:bg-white border-0 hover:border rounded py-0.5"
-                        />
-                      </td>
-                      <td className="p-1 border-r border-slate-200 text-amber-800 font-medium">{row.age11RemainingTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50/50">{getRateBadge(row.age11RateTotal)}</td>
-
-                      {/* ========================================================================= */}
-                      {/* PRIMARY SCHOOL TOTAL (AGES 6-11)                                          */}
-                      {/* ========================================================================= */}
+                      {/* PRIMARY SCHOOL TOTAL (AGES 6-11) */}
                       <td className="p-1 border-r border-slate-200 bg-emerald-50/40 font-bold border-l-2 border-emerald-500">{row.primaryCensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-50/40 text-pink-700">{row.primaryCensusFemale}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-emerald-950 text-sm">{row.primaryEnrolledTotal}</td>
-                      <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-pink-900 text-sm">{row.primaryEnrolledFemale}</td>
+                      <td className="p-1 border-r border-slate-200 bg-emerald-50/40 text-pink-700 font-semibold">{row.primaryCensusFemale}</td>
+                      <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-emerald-950 text-xs">{row.primaryEnrolledTotal}</td>
+                      <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-pink-900 text-xs">{row.primaryEnrolledFemale}</td>
                       <td className="p-1 border-r border-slate-200 bg-rose-50 font-bold text-rose-900">{row.primaryRemainingTotal}</td>
                       <td className="p-1 border-r border-slate-200 bg-rose-50 text-pink-800 font-semibold">{row.primaryRemainingFemale}</td>
-                      <td className="p-1 border-r border-slate-200 bg-blue-100 font-black">{getRateBadge(row.primaryRateTotal)}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-100 font-black">{getRateBadge(row.primaryRateFemale, true)}</td>
+                      <td className="p-0.5 border-r border-slate-200 bg-blue-100 font-black">{getRateBadge(row.primaryRateTotal, false, row.id === 'outside' ? row.primaryEnrolledTotal : undefined)}</td>
+                      <td className="p-0.5 border-r border-slate-300 bg-blue-100 font-black">{getRateBadge(row.primaryRateFemale, true, row.id === 'outside' ? row.primaryEnrolledFemale : undefined)}</td>
 
-                      {/* 12+ Years */}
-                      <td className="p-1 border-r border-slate-200">{row.age12PlusCensusTotal}</td>
-                      <td className="p-1 border-r border-slate-200 text-pink-700">{row.age12PlusCensusFemale}</td>
-                      <td className="p-1 border-r border-slate-200 bg-slate-100 font-bold">{row.age12PlusEnrolledTotal}</td>
-                      <td className="p-1 border-r border-slate-300 bg-slate-100 text-pink-700 font-bold">{row.age12PlusEnrolledFemale}</td>
+                      {/* 12+ Years (Census Total|Female & Editable Enrolled Total|Female) */}
+                      <td className="p-1 border-r border-slate-200 border-l-2 border-l-slate-400 font-semibold">{row.age12PlusCensusTotal}</td>
+                      <td className="p-1 border-r border-slate-200 text-pink-700 font-medium">{row.age12PlusCensusFemale}</td>
+                      <td className="p-0.5 border-r border-slate-200 bg-emerald-50/70">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.age12PlusEnrolledTotal}
+                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age12PlusEnrolledTotal', e.target.value)}
+                          className="w-9 text-center font-bold text-emerald-950 bg-white/80 hover:bg-white focus:bg-white border border-emerald-300 rounded px-0.5 py-0.5 text-[10px]"
+                          title="១២ ឆ្នាំឡើង - សិស្សរៀន សរុប"
+                        />
+                      </td>
+                      <td className="p-0.5 border-r border-slate-300 bg-emerald-50/70">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.age12PlusEnrolledFemale}
+                          onChange={(e) => handlePrimaryEnrolledChange(row.id, 'age12PlusEnrolledFemale', e.target.value)}
+                          className="w-9 text-center font-bold text-pink-800 bg-white/80 hover:bg-white focus:bg-white border border-emerald-300 rounded px-0.5 py-0.5 text-[10px]"
+                          title="១២ ឆ្នាំឡើង - សិស្សរៀន ស្រី"
+                        />
+                      </td>
 
                       {/* Remarks */}
                       <td className="p-1 text-left">
@@ -906,83 +1075,64 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                           value={row.remarks || ''}
                           onChange={(e) => handlePrimaryRemarksChange(row.id, e.target.value)}
                           placeholder="កំណត់សំគាល់..."
-                          className="w-full text-xs text-slate-700 bg-transparent hover:bg-slate-100 focus:bg-white rounded px-1.5 py-0.5"
+                          className="w-full min-w-[120px] text-[10px] text-slate-700 bg-transparent hover:bg-slate-100 focus:bg-white rounded px-1 py-0.5"
                         />
                       </td>
                     </tr>
                   ))}
 
-                  {/* ========================================================================= */}
-                  {/* GRAND TOTAL ROW (សរុបរួម)                                                */}
-                  {/* ========================================================================= */}
+                  {/* GRAND TOTAL ROW (សរុបរួម) */}
                   <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
-                    <td className="p-2.5 text-left border-r border-slate-300 font-extrabold text-blue-900 sticky left-0 bg-slate-100 z-10 whitespace-nowrap">
+                    <td className="p-2 text-left border-r border-slate-300 font-extrabold text-blue-900 sticky left-0 bg-slate-100 z-10 print:static whitespace-nowrap">
                       <span>សរុបរួម</span>
                     </td>
 
                     {/* Pop */}
-                    <td className="p-1.5 border-r border-slate-200 font-black">{primaryGrandTotal.populationTotal.toLocaleString()}</td>
-                    <td className="p-1.5 border-r border-slate-300 font-black text-pink-800">{primaryGrandTotal.populationFemale.toLocaleString()}</td>
-                    <td className="p-1.5 border-r border-slate-300 font-black bg-slate-200/50">{primaryGrandTotal.householdCount}</td>
+                    <td className="p-1 border-r border-slate-200 font-black">{primaryGrandTotal.populationTotal.toLocaleString()}</td>
+                    <td className="p-1 border-r border-slate-300 font-black text-pink-800">{primaryGrandTotal.populationFemale.toLocaleString()}</td>
+                    <td className="p-1 border-r border-slate-300 font-black bg-slate-200/50">{primaryGrandTotal.householdCount}</td>
 
                     {/* Group 2 */}
                     <td className="p-1 border-r border-slate-200 bg-indigo-100 font-black text-indigo-950 border-l-2 border-indigo-500">{primaryGrandTotal.group2CensusTotal}</td>
                     <td className="p-1 border-r border-slate-200 bg-indigo-100 font-black text-pink-800">{primaryGrandTotal.group2CensusFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-emerald-950 text-sm">{primaryGrandTotal.group2EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-pink-900 text-sm">{primaryGrandTotal.group2EnrolledFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-rose-900 text-sm">{primaryGrandTotal.group2RemainingTotal}</td>
+                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-emerald-950 text-xs">{primaryGrandTotal.group2EnrolledTotal}</td>
+                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-pink-900 text-xs">{primaryGrandTotal.group2EnrolledFemale}</td>
+                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-rose-900 text-xs">{primaryGrandTotal.group2RemainingTotal}</td>
                     <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-pink-800">{primaryGrandTotal.group2RemainingFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-blue-200 font-black text-sm">{getRateBadge(primaryGrandTotal.group2RateTotal)}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-200 font-black text-sm">{getRateBadge(primaryGrandTotal.group2RateFemale, true)}</td>
+                    <td className="p-0.5 border-r border-slate-200 bg-blue-200 font-black">{getRateBadge(primaryGrandTotal.group2RateTotal)}</td>
+                    <td className="p-0.5 border-r border-slate-300 bg-blue-200 font-black">{getRateBadge(primaryGrandTotal.group2RateFemale, true)}</td>
 
                     {/* Age 6 to 11 Totals */}
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age6CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age6EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age6RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age6RateTotal)}</td>
-
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age7CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age7EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age7RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age7RateTotal)}</td>
-
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age8CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age8EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age8RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age8RateTotal)}</td>
-
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age9CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age9EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age9RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age9RateTotal)}</td>
-
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age10CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age10EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age10RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age10RateTotal)}</td>
-
-                    <td className="p-1 border-r border-slate-200">{primaryGrandTotal.age11CensusTotal}</td>
-                    <td className="p-1 border-r border-slate-200 font-bold bg-emerald-100">{primaryGrandTotal.age11EnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 text-amber-900 font-bold">{primaryGrandTotal.age11RemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal.age11RateTotal)}</td>
+                    {PRIMARY_AGE_COHORTS.map(cohort => (
+                      <React.Fragment key={cohort.age}>
+                        <td className="p-1 border-r border-slate-200 border-l-2 border-l-blue-400 font-bold">{primaryGrandTotal[cohort.censusTotalKey]}</td>
+                        <td className="p-1 border-r border-slate-200 font-bold text-pink-800">{primaryGrandTotal[cohort.censusFemaleKey]}</td>
+                        <td className="p-1 border-r border-slate-200 font-black bg-emerald-100 text-emerald-950">{primaryGrandTotal[cohort.enrolledTotalKey]}</td>
+                        <td className="p-1 border-r border-slate-200 font-black bg-emerald-100 text-pink-900">{primaryGrandTotal[cohort.enrolledFemaleKey]}</td>
+                        <td className="p-1 border-r border-slate-200 bg-amber-100/60 text-amber-900 font-bold">{primaryGrandTotal[cohort.remainingTotalKey]}</td>
+                        <td className="p-1 border-r border-slate-200 bg-amber-100/60 text-pink-800 font-bold">{primaryGrandTotal[cohort.remainingFemaleKey]}</td>
+                        <td className="p-0.5 border-r border-slate-200 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal[cohort.rateTotalKey])}</td>
+                        <td className="p-0.5 border-r border-slate-300 bg-blue-100 font-bold">{getRateBadge(primaryGrandTotal[cohort.rateFemaleKey], true)}</td>
+                      </React.Fragment>
+                    ))}
 
                     {/* Primary Total */}
                     <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black border-l-2 border-emerald-500">{primaryGrandTotal.primaryCensusTotal}</td>
                     <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-pink-800">{primaryGrandTotal.primaryCensusFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-emerald-950 text-sm">{primaryGrandTotal.primaryEnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-pink-900 text-sm">{primaryGrandTotal.primaryEnrolledFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-rose-900 text-sm">{primaryGrandTotal.primaryRemainingTotal}</td>
-                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-pink-800 text-sm">{primaryGrandTotal.primaryRemainingFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-blue-200 font-black text-sm">{getRateBadge(primaryGrandTotal.primaryRateTotal)}</td>
-                    <td className="p-1 border-r border-slate-300 bg-blue-200 font-black text-sm">{getRateBadge(primaryGrandTotal.primaryRateFemale, true)}</td>
+                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-emerald-950 text-xs">{primaryGrandTotal.primaryEnrolledTotal}</td>
+                    <td className="p-1 border-r border-slate-200 bg-emerald-200 font-black text-pink-900 text-xs">{primaryGrandTotal.primaryEnrolledFemale}</td>
+                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-rose-900 text-xs">{primaryGrandTotal.primaryRemainingTotal}</td>
+                    <td className="p-1 border-r border-slate-200 bg-rose-100 font-black text-pink-800 text-xs">{primaryGrandTotal.primaryRemainingFemale}</td>
+                    <td className="p-0.5 border-r border-slate-200 bg-blue-200 font-black">{getRateBadge(primaryGrandTotal.primaryRateTotal)}</td>
+                    <td className="p-0.5 border-r border-slate-300 bg-blue-200 font-black">{getRateBadge(primaryGrandTotal.primaryRateFemale, true)}</td>
 
                     {/* 12+ Years */}
-                    <td className="p-1 border-r border-slate-200 font-bold">{primaryGrandTotal.age12PlusCensusTotal}</td>
+                    <td className="p-1 border-r border-slate-200 border-l-2 border-l-slate-400 font-bold">{primaryGrandTotal.age12PlusCensusTotal}</td>
                     <td className="p-1 border-r border-slate-200 text-pink-800 font-bold">{primaryGrandTotal.age12PlusCensusFemale}</td>
-                    <td className="p-1 border-r border-slate-200 bg-slate-200 font-black">{primaryGrandTotal.age12PlusEnrolledTotal}</td>
-                    <td className="p-1 border-r border-slate-300 bg-slate-200 text-pink-800 font-black">{primaryGrandTotal.age12PlusEnrolledFemale}</td>
+                    <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black">{primaryGrandTotal.age12PlusEnrolledTotal}</td>
+                    <td className="p-1 border-r border-slate-300 bg-emerald-100 text-pink-800 font-black">{primaryGrandTotal.age12PlusEnrolledFemale}</td>
 
-                    <td className="p-1 text-slate-500 italic text-xs">សរុបទាំងមូល</td>
+                    <td className="p-1 text-slate-500 italic text-[10px]">សរុបទាំងមូល</td>
                   </tr>
                 </tbody>
               </table>
@@ -1087,7 +1237,9 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                     <tr key={row.id} className="hover:bg-slate-50 transition group">
                       <td className="py-1 px-1.5 text-left border-r border-slate-300 font-bold text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${row.villageName.includes('មុខឈ្នាង') ? 'bg-amber-500' : 'bg-blue-600'}`} />
+                          <span className={`w-2 h-2 rounded-full ${
+                            row.id === 'outside' ? 'bg-purple-600' : row.villageName.includes('មុខឈ្នាង') ? 'bg-amber-500' : 'bg-blue-600'
+                          }`} />
                           <span>{row.villageName}</span>
                         </div>
                       </td>
@@ -1167,14 +1319,14 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
                       <td className="p-1 border-r border-slate-200 bg-emerald-100 font-black text-emerald-950 text-sm">{row.enrolled3to5Total}</td>
                       <td className="p-1 border-r border-slate-300 bg-emerald-100 font-black text-pink-900 text-sm">{row.enrolled3to5Female}</td>
 
-                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate3Total)}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate3Female, true)}</td>
-                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate4Total)}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate4Female, true)}</td>
-                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate5Total)}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate5Female, true)}</td>
-                      <td className="p-1 border-r border-slate-200 bg-blue-100 font-black">{getRateBadge(row.rate3to5Total)}</td>
-                      <td className="p-1 border-r border-slate-300 bg-blue-100 font-black">{getRateBadge(row.rate3to5Female, true)}</td>
+                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate3Total, false, row.id === 'outside' ? row.enrolled3Total : undefined)}</td>
+                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate3Female, true, row.id === 'outside' ? row.enrolled3Female : undefined)}</td>
+                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate4Total, false, row.id === 'outside' ? row.enrolled4Total : undefined)}</td>
+                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate4Female, true, row.id === 'outside' ? row.enrolled4Female : undefined)}</td>
+                      <td className="p-1 border-r border-slate-200 bg-blue-50">{getRateBadge(row.rate5Total, false, row.id === 'outside' ? row.enrolled5Total : undefined)}</td>
+                      <td className="p-1 border-r border-slate-300 bg-blue-50">{getRateBadge(row.rate5Female, true, row.id === 'outside' ? row.enrolled5Female : undefined)}</td>
+                      <td className="p-1 border-r border-slate-200 bg-blue-100 font-black">{getRateBadge(row.rate3to5Total, false, row.id === 'outside' ? row.enrolled3to5Total : undefined)}</td>
+                      <td className="p-1 border-r border-slate-300 bg-blue-100 font-black">{getRateBadge(row.rate3to5Female, true, row.id === 'outside' ? row.enrolled3to5Female : undefined)}</td>
 
                       <td className="p-1 text-left">
                         <input
@@ -1571,6 +1723,421 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* VILLAGE × AGE HORIZONTAL ROW BREAKDOWN (ជួរដេកភូមិ) & MIGRATION REASONS */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-lg">
+        <div className="p-4 bg-gradient-to-r from-slate-50 via-blue-50/50 to-purple-50/40 border-b border-slate-200 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-indigo-600" />
+                <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                  {language === 'km'
+                    ? 'តារាងប្រមូលទិន្នន័យតាមភូមិ (ជួរដេកភូមិ) — វិភាគចំណូល-ចំណាកស្រុក និងមូលហេតុភាគរយ (<១០០% / >១០០%)'
+                    : 'Horizontal Village Breakdown by Age — In/Out Migration & <100% / >100% Causes'}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                {language === 'km'
+                  ? 'បង្ហាញជួរដេកភូមិ (ភូមិរោគ • ភូមិមុខឈ្នាង • មកពីភូមិផ្សេង) សម្រាប់អាយុនីមួយៗ ដើម្បីកំណត់ចំនួនចំណូល-ចំណាកស្រុក និងពន្យល់មូលហេតុដែលភាគរយចូលរៀន <១០០% ឬ >១០០% ឱ្យបានច្បាស់។'
+                  : 'Displays horizontal feeder village rows per age to track in-migration, out-migration, and exact reasons whenever enrollment is <100% or >100%.'}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 no-print">
+              <button
+                type="button"
+                onClick={() => setIncludeEmptyOutside(v => !v)}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${
+                  includeEmptyOutside
+                    ? 'bg-purple-600 text-white border-purple-700'
+                    : 'bg-white text-purple-800 border-purple-200 hover:bg-purple-50'
+                }`}
+                title="បង្ហាញជួរដេក «មកពីភូមិផ្សេង» គ្រប់អាយុ ទោះបីទិន្នន័យស្មើ 0"
+              >
+                {includeEmptyOutside ? 'លាក់ជួរភូមិផ្សេង=0' : '+ បង្ហាញជួរភូមិផ្សេង'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetMigrationOverrides}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 transition"
+                title="ទាញតម្លៃចំណូល-ចំណាកស្រុកស្វ័យប្រវត្តិពីប្រព័ន្ធឡើងវិញ"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                <span>{language === 'km' ? 'គណនាស្វ័យប្រវត្តិ' : 'Auto Recalculate'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => exportMigrationAnalysisToCSV(filteredMigrationRows, migrationMode)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{language === 'km' ? 'នាំចេញ CSV (តាមភូមិ)' : 'Export CSV'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Summary KPI Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+            <div className="bg-white rounded-xl p-2.5 border border-rose-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-rose-700 block">ភាគរយ &lt; ១០០%</span>
+                <span className="text-base font-black text-rose-900">{migrationSummaryTotals.underCount} ជួរភូមិ</span>
+              </div>
+              <ArrowDownRight className="w-4 h-4 text-rose-600" />
+            </div>
+
+            <div className="bg-white rounded-xl p-2.5 border border-purple-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-purple-700 block">ភាគរយ &gt; ១០០%</span>
+                <span className="text-base font-black text-purple-900">{migrationSummaryTotals.overCount} ជួរភូមិ</span>
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-purple-600" />
+            </div>
+
+            <div className="bg-white rounded-xl p-2.5 border border-emerald-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-700 block">គ្រប់ = ១០០%</span>
+                <span className="text-base font-black text-emerald-900">{migrationSummaryTotals.exactCount} ជួរភូមិ</span>
+              </div>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
+
+            <div className="bg-purple-50/70 rounded-xl p-2.5 border border-purple-200">
+              <span className="text-[10px] font-bold text-purple-800 block">ចំណូលសរុប (In)</span>
+              <span className="text-base font-black text-purple-950">+{migrationSummaryTotals.totalIn} នាក់</span>
+            </div>
+
+            <div className="bg-amber-50/80 rounded-xl p-2.5 border border-amber-200">
+              <span className="text-[10px] font-bold text-amber-800 block">ចំណាកស្រុក (Out)</span>
+              <span className="text-base font-black text-amber-950">-{migrationSummaryTotals.totalOut} នាក់</span>
+            </div>
+
+            <div className="bg-rose-50/80 rounded-xl p-2.5 border border-rose-200">
+              <span className="text-[10px] font-bold text-rose-800 block">មិនទាន់ចុះឈ្មោះ/សាលាផ្សេង</span>
+              <span className="text-base font-black text-rose-950">{migrationSummaryTotals.totalNotEnrolled} នាក់</span>
+            </div>
+          </div>
+
+          {/* Filter Pills: By Exact Age & By Variance Status */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 no-print">
+            {/* Age Filter */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-700 mr-1">
+                {language === 'km' ? 'ត្រងតាមអាយុ៖' : 'Age:'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMigrationAgeFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                  migrationAgeFilter === 'all'
+                    ? 'bg-slate-800 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {language === 'km' ? 'គ្រប់អាយុ' : 'All Ages'}
+              </button>
+              {migrationAgeTabs.map(tab => (
+                <button
+                  key={tab.ageKey}
+                  type="button"
+                  onClick={() => setMigrationAgeFilter(prev => prev === tab.ageKey ? 'all' : tab.ageKey)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                    migrationAgeFilter === tab.ageKey
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                      : 'bg-white text-indigo-950 border-indigo-200 hover:bg-indigo-50'
+                  }`}
+                >
+                  {tab.ageLabelKm}
+                </button>
+              ))}
+            </div>
+
+            {/* Variance Status Filter */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-700 mr-1">
+                {language === 'km' ? 'ភាគរយ៖' : 'Rate:'}
+              </span>
+              {[
+                { key: 'all' as const, label: 'ទាំងអស់', activeCls: 'bg-slate-800 text-white border-slate-900' },
+                { key: 'under' as const, label: '< ១០០% (ខ្វះ)', activeCls: 'bg-rose-600 text-white border-rose-700' },
+                { key: 'over' as const, label: '> ១០០% (ចំណូល/លើស)', activeCls: 'bg-purple-600 text-white border-purple-700' },
+                { key: 'exact' as const, label: '= ១០០% (គ្រប់)', activeCls: 'bg-emerald-600 text-white border-emerald-700' }
+              ].map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setMigrationStatusFilter(opt.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                    migrationStatusFilter === opt.key
+                      ? opt.activeCls
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Horizontal Table Grouped by Age with Village Rows */}
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-[10.5px] text-center border-collapse font-khmer print-standard-table">
+            <thead>
+              <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
+                <th rowSpan={2} className="py-2 px-2 text-left border-r border-slate-300 min-w-[95px]">អាយុ</th>
+                <th rowSpan={2} className="py-2 px-2 text-left border-r border-slate-300 min-w-[140px]">ឈ្មោះភូមិ (ជួរដេកភូមិ)</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-indigo-50 text-indigo-950">ជំរឿនពិត</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-emerald-50 text-emerald-950">សិស្សកំពុងរៀន</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-slate-50 text-slate-900">លំអៀង (+/-)</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-blue-50 text-blue-950">% ចូលរៀន</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-purple-50 text-purple-950">ចំណូល (In)</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-amber-50 text-amber-950">ចំណាកស្រុក (Out)</th>
+                <th colSpan={2} className="p-1.5 border-r border-slate-300 bg-rose-50 text-rose-950">មិនទាន់ចុះឈ្មោះ</th>
+                <th rowSpan={2} className="p-2 text-left border-r border-slate-300 min-w-[240px] bg-slate-50">
+                  មូលហេតុភាគរយ (&lt;១០០% / &gt;១០០%)
+                </th>
+                <th rowSpan={2} className="p-2 text-left min-w-[150px] bg-slate-50">កំណត់សំគាល់បន្ថែម</th>
+              </tr>
+              <tr className="bg-slate-50 text-slate-600 border-b border-slate-300 text-[9.5px] font-bold">
+                <th className="p-1 border-r border-slate-200 bg-indigo-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-indigo-50 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200 bg-emerald-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-emerald-50 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200">សរុប</th>
+                <th className="p-1 border-r border-slate-300 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200 bg-blue-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-blue-50 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200 bg-purple-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-purple-50 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200 bg-amber-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-amber-50 text-pink-700">ស្រី</th>
+                <th className="p-1 border-r border-slate-200 bg-rose-50">សរុប</th>
+                <th className="p-1 border-r border-slate-300 bg-rose-50 text-pink-700">ស្រី</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {groupedMigrationSections.length === 0 ? (
+                <tr>
+                  <td colSpan={18} className="py-8 text-center text-slate-400">
+                    {language === 'km' ? 'មិនមានទិន្នន័យត្រូវនឹងលក្ខខណ្ឌតម្រងនេះទេ' : 'No rows match the selected filters'}
+                  </td>
+                </tr>
+              ) : (
+                groupedMigrationSections.map(group => {
+                  const subCensusTot = group.rows.reduce((s, r) => s + r.censusTotal, 0);
+                  const subCensusFem = group.rows.reduce((s, r) => s + r.censusFemale, 0);
+                  const subEnrolledTot = group.rows.reduce((s, r) => s + r.enrolledTotal, 0);
+                  const subEnrolledFem = group.rows.reduce((s, r) => s + r.enrolledFemale, 0);
+                  const subDiffTot = subEnrolledTot - subCensusTot;
+                  const subDiffFem = subEnrolledFem - subCensusFem;
+                  const subRateTot = subCensusTot > 0 ? parseFloat(((subEnrolledTot / subCensusTot) * 100).toFixed(1)) : 0;
+                  const subRateFem = subCensusFem > 0 ? parseFloat(((subEnrolledFem / subCensusFem) * 100).toFixed(1)) : 0;
+                  const subInTot = group.rows.reduce((s, r) => s + r.inMigrationTotal, 0);
+                  const subInFem = group.rows.reduce((s, r) => s + r.inMigrationFemale, 0);
+                  const subOutTot = group.rows.reduce((s, r) => s + r.outMigrationTotal, 0);
+                  const subOutFem = group.rows.reduce((s, r) => s + r.outMigrationFemale, 0);
+                  const subRemTot = group.rows.reduce((s, r) => s + r.notEnrolledRemainingTotal, 0);
+                  const subRemFem = group.rows.reduce((s, r) => s + r.notEnrolledRemainingFemale, 0);
+
+                  return (
+                    <React.Fragment key={group.ageKey}>
+                      {group.rows.map((row, idx) => (
+                        <tr key={row.rowKey} className="hover:bg-slate-50/90 transition">
+                          {idx === 0 && (
+                            <td
+                              rowSpan={group.rows.length + 1}
+                              className="py-1.5 px-2 text-left border-r border-slate-300 bg-slate-50/80 font-black text-indigo-950 align-top whitespace-nowrap"
+                            >
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-950 border border-indigo-200 text-[11px]">
+                                {group.ageLabelKm}
+                              </div>
+                            </td>
+                          )}
+
+                          {/* Village Horizontal Row Label */}
+                          <td className="py-1.5 px-2 text-left border-r border-slate-300 font-bold text-slate-900 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  row.villageId === 'outside'
+                                    ? 'bg-purple-600'
+                                    : row.villageId === 'mukh_chhnang'
+                                      ? 'bg-amber-500'
+                                      : 'bg-blue-600'
+                                }`}
+                              />
+                              <span>{row.villageName}</span>
+                            </div>
+                          </td>
+
+                          {/* Census */}
+                          <td className="p-1 border-r border-slate-200 bg-indigo-50/30 font-bold">{row.censusTotal}</td>
+                          <td className="p-1 border-r border-slate-300 bg-indigo-50/30 text-pink-700 font-semibold">{row.censusFemale}</td>
+
+                          {/* Enrolled */}
+                          <td className="p-1 border-r border-slate-200 bg-emerald-50/30 font-black text-emerald-900">{row.enrolledTotal}</td>
+                          <td className="p-1 border-r border-slate-300 bg-emerald-50/30 text-pink-800 font-bold">{row.enrolledFemale}</td>
+
+                          {/* Diff (+/-) */}
+                          <td className={`p-1 border-r border-slate-200 font-extrabold ${
+                            row.diffTotal > 0 ? 'text-purple-800 bg-purple-50/40' : row.diffTotal < 0 ? 'text-rose-700 bg-rose-50/40' : 'text-emerald-700'
+                          }`}>
+                            {row.diffTotal > 0 ? `+${row.diffTotal}` : row.diffTotal}
+                          </td>
+                          <td className={`p-1 border-r border-slate-300 font-bold ${
+                            row.diffFemale > 0 ? 'text-purple-700 bg-purple-50/40' : row.diffFemale < 0 ? 'text-rose-700 bg-rose-50/40' : 'text-pink-700'
+                          }`}>
+                            {row.diffFemale > 0 ? `+${row.diffFemale}` : row.diffFemale}
+                          </td>
+
+                          {/* Enrollment % */}
+                          <td className="p-1 border-r border-slate-200 bg-blue-50/30">
+                            {row.villageId === 'outside' ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                                ចំណូល +{row.enrolledTotal}
+                              </span>
+                            ) : getRateBadge(row.rateTotal)}
+                          </td>
+                          <td className="p-1 border-r border-slate-300 bg-blue-50/30">
+                            {row.villageId === 'outside' ? (
+                              <span className="text-slate-400 text-[10px]">—</span>
+                            ) : getRateBadge(row.rateFemale, true)}
+                          </td>
+
+                          {/* Editable In-Migration */}
+                          <td className="p-0.5 border-r border-slate-200 bg-purple-50/40">
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.inMigrationTotal}
+                              onChange={(e) => handleMigrationOverrideChange(row.rowKey, 'inMigrationTotal', e.target.value)}
+                              className="w-10 text-center font-bold text-purple-950 bg-white border border-purple-300 rounded px-0.5 py-0.5 text-[10px] focus:ring-2 focus:ring-purple-500"
+                              title="កែចំនួនកុមារចំណូល (សរុប)"
+                            />
+                          </td>
+                          <td className="p-0.5 border-r border-slate-300 bg-purple-50/40">
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.inMigrationFemale}
+                              onChange={(e) => handleMigrationOverrideChange(row.rowKey, 'inMigrationFemale', e.target.value)}
+                              className="w-10 text-center font-bold text-pink-800 bg-white border border-purple-300 rounded px-0.5 py-0.5 text-[10px] focus:ring-2 focus:ring-pink-500"
+                              title="កែចំនួនកុមារចំណូល (ស្រី)"
+                            />
+                          </td>
+
+                          {/* Editable Out-Migration */}
+                          <td className="p-0.5 border-r border-slate-200 bg-amber-50/40">
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.outMigrationTotal}
+                              onChange={(e) => handleMigrationOverrideChange(row.rowKey, 'outMigrationTotal', e.target.value)}
+                              className="w-10 text-center font-bold text-amber-950 bg-white border border-amber-300 rounded px-0.5 py-0.5 text-[10px] focus:ring-2 focus:ring-amber-500"
+                              title="កែចំនួនចំណាកស្រុក/ផ្លាស់លំនៅ-ឈប់រៀន (សរុប)"
+                            />
+                          </td>
+                          <td className="p-0.5 border-r border-slate-300 bg-amber-50/40">
+                            <input
+                              type="number"
+                              min={0}
+                              value={row.outMigrationFemale}
+                              onChange={(e) => handleMigrationOverrideChange(row.rowKey, 'outMigrationFemale', e.target.value)}
+                              className="w-10 text-center font-bold text-pink-800 bg-white border border-amber-300 rounded px-0.5 py-0.5 text-[10px] focus:ring-2 focus:ring-pink-500"
+                              title="កែចំនួនចំណាកស្រុក/ផ្លាស់លំនៅ-ឈប់រៀន (ស្រី)"
+                            />
+                          </td>
+
+                          {/* Remaining Not-Enrolled / Attending Elsewhere */}
+                          <td className="p-1 border-r border-slate-200 bg-rose-50/40 font-bold text-rose-900">
+                            {row.notEnrolledRemainingTotal}
+                          </td>
+                          <td className="p-1 border-r border-slate-300 bg-rose-50/40 text-pink-700 font-semibold">
+                            {row.notEnrolledRemainingFemale}
+                          </td>
+
+                          {/* Clear <100% / >100% Reason */}
+                          <td className="py-1.5 px-2 text-left border-r border-slate-300 text-[10.5px] leading-snug">
+                            <div className="flex items-start gap-1.5">
+                              {row.varianceStatus === 'over' ? (
+                                <span className="shrink-0 mt-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-purple-100 text-purple-900 border border-purple-300">
+                                  &gt;100%
+                                </span>
+                              ) : row.varianceStatus === 'under' ? (
+                                <span className="shrink-0 mt-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-rose-100 text-rose-900 border border-rose-300">
+                                  &lt;100%
+                                </span>
+                              ) : row.varianceStatus === 'exact' ? (
+                                <span className="shrink-0 mt-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  =100%
+                                </span>
+                              ) : null}
+                              <span className="text-slate-700 font-medium">{row.autoReasonKm}</span>
+                            </div>
+                          </td>
+
+                          {/* Custom Reason / Note Input */}
+                          <td className="p-1 text-left">
+                            <input
+                              type="text"
+                              value={row.customReason}
+                              onChange={(e) => handleMigrationOverrideChange(row.rowKey, 'customReason', e.target.value)}
+                              placeholder="បញ្ជាក់មូលហេតុជាក់ស្តែង..."
+                              className="w-full text-[10px] text-slate-800 bg-transparent hover:bg-slate-100 focus:bg-white rounded px-1.5 py-0.5 border border-transparent focus:border-slate-300"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* Subtotal Horizontal Row per Age */}
+                      <tr className="bg-slate-100/90 font-extrabold text-slate-900 border-b-2 border-slate-300">
+                        <td className="py-1.5 px-2 text-left border-r border-slate-300 text-indigo-950 whitespace-nowrap">
+                          សរុប ({group.ageLabelKm})
+                        </td>
+                        <td className="p-1 border-r border-slate-200">{subCensusTot}</td>
+                        <td className="p-1 border-r border-slate-300 text-pink-800">{subCensusFem}</td>
+                        <td className="p-1 border-r border-slate-200 text-emerald-950">{subEnrolledTot}</td>
+                        <td className="p-1 border-r border-slate-300 text-pink-900">{subEnrolledFem}</td>
+                        <td className={`p-1 border-r border-slate-200 ${
+                          subDiffTot > 0 ? 'text-purple-900' : subDiffTot < 0 ? 'text-rose-800' : 'text-emerald-800'
+                        }`}>
+                          {subDiffTot > 0 ? `+${subDiffTot}` : subDiffTot}
+                        </td>
+                        <td className={`p-1 border-r border-slate-300 ${
+                          subDiffFem > 0 ? 'text-purple-800' : subDiffFem < 0 ? 'text-rose-800' : 'text-pink-800'
+                        }`}>
+                          {subDiffFem > 0 ? `+${subDiffFem}` : subDiffFem}
+                        </td>
+                        <td className="p-1 border-r border-slate-200 bg-blue-100/60">{getRateBadge(subRateTot)}</td>
+                        <td className="p-1 border-r border-slate-300 bg-blue-100/60">{getRateBadge(subRateFem, true)}</td>
+                        <td className="p-1 border-r border-slate-200 text-purple-950 bg-purple-100/50">{subInTot}</td>
+                        <td className="p-1 border-r border-slate-300 text-pink-900 bg-purple-100/50">{subInFem}</td>
+                        <td className="p-1 border-r border-slate-200 text-amber-950 bg-amber-100/50">{subOutTot}</td>
+                        <td className="p-1 border-r border-slate-300 text-pink-900 bg-amber-100/50">{subOutFem}</td>
+                        <td className="p-1 border-r border-slate-200 text-rose-900 bg-rose-100/50">{subRemTot}</td>
+                        <td className="p-1 border-r border-slate-300 text-pink-900 bg-rose-100/50">{subRemFem}</td>
+                        <td colSpan={2} className="py-1.5 px-2 text-left text-[10px] text-slate-700 font-bold">
+                          {subDiffTot > 0
+                            ? `លើសជំរឿនសរុប +${subDiffTot} នាក់ (${subRateTot}%) • ចំណូល +${subInTot} / ចំណាកស្រុក -${subOutTot}`
+                            : subDiffTot < 0
+                              ? `ខ្វះជំរឿនសរុប ${subDiffTot} នាក់ (${subRateTot}%) • ចំណាកស្រុក -${subOutTot} / មិនទាន់ចុះឈ្មោះ ${subRemTot}`
+                              : `គ្រប់ជំរឿនសរុប ${subEnrolledTot}/${subCensusTot} (${subRateTot}%)`}
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Official Signatures Section for Official Reports */}
       <OfficialSignatureSection

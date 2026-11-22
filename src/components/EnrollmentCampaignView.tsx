@@ -20,10 +20,14 @@ import {
   ChevronRight,
   Eye,
   Calendar,
-  Info
+  Info,
+  CheckSquare,
+  UserPlus
 } from 'lucide-react';
 import { Citizen, Household, Language, EnrollmentChild, EnrollmentStatus } from '../types/census';
+import { StudentGrade } from '../types/student';
 import { getEnrollmentChildren } from '../utils/enrollmentUtils';
+import { classifyCitizenVillage } from '../utils/comparisonData';
 import { translations, translateGender } from '../utils/translations';
 import { OfficialSignatureSection } from './OfficialSignatureSection';
 import { OfficialReportHeader } from './OfficialReportHeader';
@@ -34,6 +38,7 @@ interface EnrollmentCampaignViewProps {
   language: Language;
   onUpdateCitizenStatus: (citizenId: number, status: EnrollmentStatus) => void;
   onSelectCitizen: (citizen: Citizen) => void;
+  onEnrollCitizens?: (citizenIds: number[], targetGrade?: StudentGrade | 'auto', section?: string) => void;
 }
 
 export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
@@ -41,7 +46,8 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
   households,
   language,
   onUpdateCitizenStatus,
-  onSelectCitizen
+  onSelectCitizen,
+  onEnrollCitizens
 }) => {
   const t = translations[language];
 
@@ -57,6 +63,11 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
   const [highlightPending, setHighlightPending] = useState(true);
   const [sortField, setSortField] = useState<'months' | 'name' | 'village' | 'household'>('months');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Tick selection for verifying & sending children to enroll
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [enrollTargetGrade, setEnrollTargetGrade] = useState<'auto' | StudentGrade>('auto');
+  const [enrollTargetSection, setEnrollTargetSection] = useState<string>('ក');
 
   // Compute children dataset
   const { allChildren, group1Children, group2Children, stats } = useMemo(() => {
@@ -160,6 +171,42 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
     });
   }, [citizens, baseList, villageFilter, genderFilter, statusFilter]);
 
+  // Horizontal Village × Age Summary (ភូមិរោគ & ភូមិមុខឈ្នាង rows across Ages 3, 4, 5, 6, 7)
+  const villageAgeSummary = useMemo(() => {
+    const targetAges = [3, 4, 5, 6, 7] as const;
+    const contextCitizens = citizens.filter(c =>
+      genderFilter === 'all' ? true : c.gender === genderFilter
+    );
+    const villages = [
+      { id: 'roak' as const, filterVal: 'រោគ', label: 'ភូមិរោគ', dot: 'bg-blue-600' },
+      { id: 'mukh_chhnang' as const, filterVal: 'មុខឈ្នាង', label: 'ភូមិមុខឈ្នាង', dot: 'bg-amber-500' }
+    ];
+
+    return villages.map(v => {
+      const vCitizens = contextCitizens.filter(c => classifyCitizenVillage(c) === v.id);
+      const cells = targetAges.map(age => {
+        const list = vCitizens.filter(c => c.age === age);
+        const enrolled = list.filter(c => c.enrollmentStatus === 'enrolled').length;
+        const moved = list.filter(c => c.enrollmentStatus === 'moved').length;
+        const pending = list.filter(c => !c.enrollmentStatus || c.enrollmentStatus === 'not_enrolled' || c.enrollmentStatus === 'contacted').length;
+        const female = list.filter(c => c.gender === 'ស្រី').length;
+        return {
+          age,
+          total: list.length,
+          female,
+          enrolled,
+          moved,
+          pending
+        };
+      });
+      const totalAll = cells.reduce((s, c) => s + c.total, 0);
+      const totalEnrolled = cells.reduce((s, c) => s + c.enrolled, 0);
+      const totalMoved = cells.reduce((s, c) => s + c.moved, 0);
+      const totalPending = cells.reduce((s, c) => s + c.pending, 0);
+      return { ...v, cells, totalAll, totalEnrolled, totalMoved, totalPending };
+    });
+  }, [citizens, genderFilter]);
+
   const handleSort = (field: 'months' | 'name' | 'village' | 'household') => {
     if (sortField === field) {
       setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
@@ -179,6 +226,42 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
     for (const child of pendingInFiltered) {
       onUpdateCitizenStatus(child.citizen.id, 'contacted');
     }
+  };
+
+  const toggleSelectChild = (citizenId: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(citizenId)) next.delete(citizenId);
+      else next.add(citizenId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = () => {
+    const visibleIds = filteredChildren.map(c => c.citizen.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        visibleIds.forEach(id => next.delete(id));
+      } else {
+        visibleIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBatchEnrollSelected = () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    if (onEnrollCitizens) {
+      onEnrollCitizens(ids, enrollTargetGrade, enrollTargetSection);
+    } else {
+      for (const id of ids) {
+        onUpdateCitizenStatus(id, 'enrolled');
+      }
+    }
+    setSelectedIds(new Set());
   };
 
   // Cycle status on click
@@ -684,6 +767,87 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
           })}
         </div>
 
+        {/* Horizontal Village Rows by Age (ជួរដេកភូមិ: ភូមិរោគ & ភូមិមុខឈ្នាង) */}
+        <div className="pt-2 border-t border-slate-100 overflow-x-auto">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[11px] font-bold text-slate-800">
+              {language === 'km'
+                ? 'ទិន្នន័យតាមភូមិ (ជួរដេកភូមិ) តាមអាយុ ៣-៧ ឆ្នាំ — ទម្រង់៖ ចុះឈ្មោះ / ជំរឿន (នៅសល់ • ផ្លាស់លំនៅ)'
+                : 'Village Breakdown by Age (3-7y) — Format: Enrolled / Census (Pending • Moved)'}
+            </span>
+          </div>
+          <table className="w-full text-[10.5px] text-center border-collapse font-khmer border border-slate-200 rounded-lg overflow-hidden">
+            <thead>
+              <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-bold">
+                <th className="py-1 px-2 text-left border-r border-slate-200 min-w-[125px]">ជួរដេកភូមិ</th>
+                {[3, 4, 5, 6, 7].map(age => (
+                  <th
+                    key={age}
+                    className={`py-1 px-2 border-r border-slate-200 whitespace-nowrap ${
+                      ageFilter === age ? 'bg-emerald-100 text-emerald-950 font-black' : ''
+                    }`}
+                  >
+                    {age} ឆ្នាំ
+                  </th>
+                ))}
+                <th className="py-1 px-2 bg-amber-50 text-amber-900 font-bold whitespace-nowrap">ចំណាកស្រុក/ផ្លាស់លំនៅ</th>
+                <th className="py-1 px-2 bg-slate-200/70 font-black whitespace-nowrap">សរុប (ចុះឈ្មោះ/ជំរឿន)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {villageAgeSummary.map(vRow => (
+                <tr key={vRow.id} className="hover:bg-slate-50">
+                  <td className="py-1 px-2 text-left border-r border-slate-200 font-bold text-slate-900 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setVillageFilter(prev => prev === vRow.filterVal ? 'all' : vRow.filterVal)}
+                      className="inline-flex items-center gap-1.5 hover:text-emerald-700"
+                    >
+                      <span className={`w-2 h-2 rounded-full ${vRow.dot}`} />
+                      <span>{vRow.label}</span>
+                    </button>
+                  </td>
+                  {vRow.cells.map(cell => {
+                    const isActive = ageFilter === cell.age && villageFilter === vRow.filterVal;
+                    return (
+                      <td
+                        key={cell.age}
+                        onClick={() => {
+                          if (cell.age === 6 || cell.age === 7) setActiveTab('all');
+                          setVillageFilter(vRow.filterVal);
+                          setAgeFilter(cell.age);
+                        }}
+                        className={`py-1 px-1.5 border-r border-slate-200 cursor-pointer hover:bg-emerald-50 ${
+                          isActive ? 'bg-emerald-100 ring-1 ring-inset ring-emerald-500' : ''
+                        }`}
+                      >
+                        <div className="font-bold text-slate-900">
+                          <span className="text-emerald-700">{cell.enrolled}</span>
+                          <span className="text-slate-400 font-normal">/{cell.total}</span>
+                        </div>
+                        <div className="text-[9px] text-slate-600">
+                          {cell.pending > 0 && <span className="text-rose-700 font-bold">សល់ {cell.pending}</span>}
+                          {cell.moved > 0 && <span className="text-amber-700 font-bold ml-1">• ចាក {cell.moved}</span>}
+                          {cell.pending === 0 && cell.moved === 0 && cell.total > 0 && (
+                            <span className="text-emerald-700 font-bold">100%</span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="py-1 px-2 border-r border-slate-200 bg-amber-50/40 font-bold text-amber-900">
+                    {vRow.totalMoved} នាក់
+                  </td>
+                  <td className="py-1 px-2 bg-slate-50 font-black text-slate-900 whitespace-nowrap">
+                    <span className="text-emerald-700">{vRow.totalEnrolled}</span> / {vRow.totalAll}{' '}
+                    <span className="text-[10px] text-rose-700 font-bold">(សល់ {vRow.totalPending})</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         {/* Counter and Results */}
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -707,12 +871,69 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
         </div>
       </div>
 
+      {/* Batch Tick-to-Enroll Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs shadow-sm no-print">
+          <div className="flex items-center gap-2 font-bold text-emerald-950">
+            <CheckSquare className="w-4 h-4 text-emerald-700" />
+            <span>បាន Tick កុមារ៖ <strong className="text-emerald-700 text-sm">{selectedIds.size} នាក់</strong></span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={enrollTargetGrade}
+              onChange={(e) => setEnrollTargetGrade(e.target.value as 'auto' | StudentGrade)}
+              className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-slate-800"
+            >
+              <option value="auto">ថ្នាក់៖ ស្វ័យប្រវត្តិតាមអាយុ</option>
+              <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យទាប</option>
+              <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យមធ្យម</option>
+              <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យខ្ពស់</option>
+              <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
+              <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
+            </select>
+            <select
+              value={enrollTargetSection}
+              onChange={(e) => setEnrollTargetSection(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-emerald-300 bg-white font-bold text-slate-800"
+            >
+              <option value="ក">បន្ទប់ ក</option>
+              <option value="ខ">បន្ទប់ ខ</option>
+              <option value="គ">បន្ទប់ គ</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleBatchEnrollSelected}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs transition"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>បញ្ជូនទៅចូលរៀន ({selectedIds.size} នាក់)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="px-2.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-200 font-semibold"
+            >
+              បោះបង់
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Children Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:overflow-visible print:shadow-none print:rounded-none">
         <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-xs text-left border-collapse print-standard-table">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <th className="py-3 px-2.5 w-8 text-center no-print">
+                  <input
+                    type="checkbox"
+                    checked={filteredChildren.length > 0 && filteredChildren.every(c => selectedIds.has(c.citizen.id))}
+                    onChange={toggleSelectAllFiltered}
+                    title="Tick ទាំងអស់ក្នុងបញ្ជីនេះ"
+                    className="rounded text-emerald-600 cursor-pointer"
+                  />
+                </th>
                 <th className="py-3 px-3 w-12 text-center">#</th>
                 <th 
                   onClick={() => handleSort('name')}
@@ -763,11 +984,11 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredChildren.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-slate-500">
+                  <td colSpan={14} className="py-12 text-center text-slate-500">
                     <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700">{t.noResults}</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      {language === 'km' ? 'សូមកែសម្រួលពាក្យស្វែងរក ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting your filters'}
+                      {language === 'km' ? 'សូមកែសម្រួលពាក្យស្វែងរក ឬកំណត់តម្រងឡើងវិញ' : 'Try adjusting your search criteria or resetting filters'}
                     </p>
                   </td>
                 </tr>
@@ -776,15 +997,26 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                   const isMukhChhnang = child.citizen.village === 'មុខឈ្នាង';
                   const isGroup2 = child.ageInMonths >= 70 && child.ageInMonths <= 82;
                   const isPending = child.enrollmentStatus === 'not_enrolled' || !child.enrollmentStatus;
-                  const rowClass = (isPending && highlightPending)
-                    ? 'bg-amber-50/85 hover:bg-amber-100/90 border-l-4 border-l-amber-500 ring-1 ring-amber-300/40 font-medium transition'
-                    : 'hover:bg-blue-50/40 transition';
+                  const isTicked = selectedIds.has(child.citizen.id);
+                  const rowClass = isTicked
+                    ? 'bg-emerald-50/85 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500 transition'
+                    : (isPending && highlightPending)
+                      ? 'bg-amber-50/85 hover:bg-amber-100/90 border-l-4 border-l-amber-500 ring-1 ring-amber-300/40 font-medium transition'
+                      : 'hover:bg-blue-50/40 transition';
 
                   return (
                     <tr 
-                      key={child.citizen.id}
+                      key={child.citizen.id} 
                       className={rowClass}
                     >
+                      <td className="py-3 px-2.5 text-center no-print" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isTicked}
+                          onChange={() => toggleSelectChild(child.citizen.id)}
+                          className="rounded text-emerald-600 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 px-3 text-center text-slate-400 font-mono text-xs">
                         {index + 1}
                       </td>
@@ -953,6 +1185,20 @@ export const EnrollmentCampaignView: React.FC<EnrollmentCampaignViewProps> = ({
                       {/* Actions */}
                       <td className="py-3 px-3 text-right no-print">
                         <div className="flex items-center justify-end gap-1">
+                          {child.enrollmentStatus !== 'enrolled' && onEnrollCitizens && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEnrollCitizens([child.citizen.id], 'auto', 'ក');
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-2xs"
+                              title={language === 'km' ? 'បញ្ជូនទៅចូលរៀនភ្លាមៗ' : 'Send to Enroll immediately'}
+                            >
+                              <UserPlus className="w-3 h-3" />
+                              <span className="hidden xl:inline">{language === 'km' ? 'ចូលរៀន' : 'Enroll'}</span>
+                            </button>
+                          )}
                           {isPending && (
                             <button
                               type="button"
