@@ -6,21 +6,76 @@ const monthMap: Record<string, number> = {
 };
 
 /**
- * Parses DOB in the standard format "DD/Mon/YYYY" (e.g., "15/Apr/2020")
+ * Parses DOB supporting "DD/Mon/YYYY" (e.g., "15/Apr/2020"), numeric "DD/MM/YYYY",
+ * numeric "MM/DD/YYYY" / "MM-DD-YYYY" (when month/day order differs or 2nd token > 12), and 2-digit years.
  */
-export function parseDateOfBirth(dobStr: string): Date | null {
+export function parseDateOfBirth(dobStr: string, preferDayFirst = true): Date | null {
   if (!dobStr) return null;
-  const parts = dobStr.split('/');
+  const parts = dobStr.trim().split(/[/-]/);
   if (parts.length !== 3) return null;
-  const day = parseInt(parts[0], 10);
+
+  const rawYear = parts[2].trim();
+  let yr = parseInt(rawYear, 10);
+  if (isNaN(yr)) return null;
+  if (rawYear.length === 2) {
+    yr = yr <= 27 ? 2000 + yr : 1900 + yr;
+  }
+
   const monKey = parts[1].toLowerCase().trim();
-  const numMon = parseInt(monKey, 10);
-  const mon = monthMap[monKey] !== undefined
-    ? monthMap[monKey]
-    : (!isNaN(numMon) && numMon >= 1 && numMon <= 12 ? numMon - 1 : undefined);
-  const yr = parseInt(parts[2], 10);
-  if (isNaN(day) || mon === undefined || isNaN(yr)) return null;
-  return new Date(yr, mon, day);
+  if (monthMap[monKey] !== undefined) {
+    const day = parseInt(parts[0], 10);
+    if (isNaN(day) || day < 1 || day > 31) return null;
+    return new Date(yr, monthMap[monKey], day);
+  }
+
+  // Handle numeric dates (e.g., "02/11/2021" DD/MM/YYYY or "10/25/90" MM/DD/YY)
+  const first = parseInt(parts[0], 10);
+  const second = parseInt(parts[1], 10);
+  if (isNaN(first) || isNaN(second)) return null;
+
+  if (first > 12 && second >= 1 && second <= 12) {
+    return new Date(yr, second - 1, first);
+  }
+  if (second > 12 && first >= 1 && first <= 12) {
+    return new Date(yr, first - 1, second);
+  }
+  if (preferDayFirst) {
+    return new Date(yr, second - 1, first);
+  }
+  return new Date(yr, first - 1, second);
+}
+
+/**
+ * Formats a Date into canonical "DD/Mon/YYYY" for display and matching
+ */
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function formatDobCanonical(dt: Date | null, fallback = ''): string {
+  if (!dt || isNaN(dt.getTime())) return fallback;
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mon = MONTH_NAMES[dt.getMonth()];
+  const yyyy = dt.getFullYear();
+  return `${dd}/${mon}/${yyyy}`;
+}
+
+/**
+ * Calculates age in full years as of the November 2026 census reference date
+ */
+export function calculateAgeYears(
+  dobStr: string,
+  fallbackYears = 0,
+  asOfDate: Date = new Date(2026, 10, 1),
+  preferDayFirst = true
+): number {
+  const dob = parseDateOfBirth(dobStr, preferDayFirst);
+  if (!dob) return Math.max(0, fallbackYears || 0);
+  let age = asOfDate.getFullYear() - dob.getFullYear();
+  if (
+    asOfDate.getMonth() < dob.getMonth() ||
+    (asOfDate.getMonth() === dob.getMonth() && asOfDate.getDate() < dob.getDate())
+  ) {
+    age--;
+  }
+  return Math.max(0, age);
 }
 
 /**
@@ -31,7 +86,7 @@ export function calculateAgeInMonths(
   fallbackYears = 0,
   asOfDate: Date = new Date(2026, 9, 1)
 ): number {
-  const dob = parseDateOfBirth(dobStr);
+  const dob = parseDateOfBirth(dobStr, true);
   if (!dob) {
     return Math.max(0, fallbackYears * 12);
   }

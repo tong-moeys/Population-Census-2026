@@ -1,13 +1,18 @@
-import { StudentRecord, StudentGrade, EyeCheckResult, PoorCardStatus } from '../types/student';
+import { StudentRecord, StudentGrade } from '../types/student';
 import { Citizen, Household } from '../types/census';
-import { loadParsedCensus } from './censusData';
-import { parseDateOfBirth, calculateAgeInMonths } from './enrollmentUtils';
+import rawStudents2027 from '../data/students2027.json';
+import { calculateAgeInMonths } from './enrollmentUtils';
+import {
+  isExplicitOutsideVillage,
+  matchRawStudentsToCitizens,
+  ParsedRawStudent,
+  parseRawStudentRow
+} from './studentMatcher';
 
-const STORAGE_KEY = 'rouk_primary_school_students_v2';
+const STORAGE_KEY = 'rouk_primary_school_students_2027_v1';
 
 // Khmer transliteration helper for basic Latin names
 export function toLatinName(khmerName: string): string {
-  // Simple heuristic or readable fallback
   return khmerName
     .replace(/ស៊|ស/g, 'S')
     .replace(/ហ/g, 'H')
@@ -23,174 +28,158 @@ export function toLatinName(khmerName: string): string {
     .trim();
 }
 
+function gradeSortOrder(grade: string): number {
+  if (grade === 'ថ្នាក់ទី១') return 1;
+  if (grade === 'ថ្នាក់ទី២') return 2;
+  if (grade === 'ថ្នាក់ទី៣') return 3;
+  if (grade === 'ថ្នាក់ទី៤') return 4;
+  if (grade === 'ថ្នាក់ទី៥') return 5;
+  if (grade === 'ថ្នាក់ទី៦') return 6;
+  if (grade === 'មត្តេយ្យកម្រិតខ្ពស់') return 7;
+  if (grade === 'មត្តេយ្យចម្រុះ') return 8;
+  if (grade === 'មត្តេយ្យកម្រិតមធ្យម') return 9;
+  if (grade === 'មត្តេយ្យកម្រិតទាប') return 10;
+  return 11;
+}
+
 /**
- * Generates initial official student records based on Rouk Primary School's
- * Grade 1 roster (31 students) and Pre-school roster (41 students),
- * automatically matched with parents and households from the 2026 census!
+ * Loads all official 2026-2027 student records (Preschool through Grade 6) from students2027.json
+ * and links them with matching households and citizens from the census.
  */
 export function generateInitialStudents(citizens: Citizen[], households: Household[]): StudentRecord[] {
-  // Map households by village + householdCode/id
   const hhMap = new Map<string, Household>();
   for (const hh of households) {
     const key = `${hh.village || 'រោគ'}_${hh.householdCode || hh.id}`;
     hhMap.set(key, hh);
   }
 
-  // Pre-school Roster (41 students) - Academic year 2025-2026 / 2026-2027
-  // Grade 1 Roster (31 students)
+  const rawArray = rawStudents2027 as unknown as Array<Record<string, (string | number)[]>>;
+  const parsedRows: ParsedRawStudent[] = [];
+  for (let i = 0; i < rawArray.length; i++) {
+    const rowObj = rawArray[i];
+    if (!rowObj) continue;
+    const keys = Object.keys(rowObj);
+    if (keys.length === 0) continue;
+    const parsed = parseRawStudentRow(rowObj[keys[0]], i);
+    if (parsed) parsedRows.push(parsed);
+  }
+
+  const matchedCitizenMap = matchRawStudentsToCitizens(parsedRows, citizens);
   const students: StudentRecord[] = [];
 
-  // Find enrolled children in census
-  const enrolledCitizens = citizens.filter(c => c.enrollmentStatus === 'enrolled');
+  parsedRows.forEach((raw, idx) => {
+    const seq = idx + 1;
+    const matchedCitizen = matchedCitizenMap.get(raw.rowIndex);
+    const isOutside = isExplicitOutsideVillage(raw.pobVillage);
 
-  let studentIdSeq = 1;
+    // Resolve current residence village: explicit outside stays outside; otherwise census match -> pobVillage -> 'រោគ'
+    const currentVillage = isOutside
+      ? raw.pobVillage
+      : (matchedCitizen?.village || raw.pobVillage || 'រោគ');
 
-  for (const citizen of enrolledCitizens) {
-    const months = calculateAgeInMonths(citizen.dob, citizen.age);
+    const pobVillage = raw.pobVillage || matchedCitizen?.village || 'រោគ';
+    const hhCode = matchedCitizen?.householdCode || (matchedCitizen ? String(matchedCitizen.householdId) : '');
+    const hh = matchedCitizen
+      ? hhMap.get(`${matchedCitizen.village || 'រោគ'}_${hhCode}`)
+      : undefined;
 
-    const isGrade1 = months >= 70 && months <= 82;
-    const isPreschool = months >= 36 && months < 70;
+    let fatherName = raw.fatherName;
+    let fatherOccupation = raw.fatherOccupation || 'កសិករ';
+    let motherName = raw.motherName;
+    let motherOccupation = raw.motherOccupation || 'កសិករ';
 
-    const grade: StudentGrade = isGrade1 
-      ? 'ថ្នាក់ទី១' 
-      : (months >= 60 ? 'មត្តេយ្យកម្រិតខ្ពស់' : (months >= 48 ? 'មត្តេយ្យកម្រិតមធ្យម' : 'មត្តេយ្យកម្រិតទាប'));
-
-    const section = (studentIdSeq % 2 === 0) ? 'ក' : 'ខ';
-    const village = citizen.village || 'រោគ';
-    const hhKey = `${village}_${citizen.householdCode || citizen.householdId}`;
-    const hh = hhMap.get(hhKey);
-
-    // Find parents from household
-    let fatherName = '';
-    let fatherOccupation = 'កសិករ';
-    let motherName = '';
-    let motherOccupation = 'កសិករ';
-
-    if (hh) {
-      const father = hh.members.find(m => (m.relationship === 'ឪពុក' || m.relationship === 'ប្តី') && m.gender === 'ប្រុស');
-      if (father) {
-        fatherName = father.name;
-        fatherOccupation = father.occupation || 'កសិករ';
+    if ((!fatherName || !motherName) && hh) {
+      if (!fatherName) {
+        const fMem = hh.members.find(m => (m.relationship === 'ឪពុក' || m.relationship === 'ប្តី') && m.gender === 'ប្រុស');
+        if (fMem) {
+          fatherName = fMem.name;
+          fatherOccupation = fMem.occupation || fatherOccupation;
+        }
       }
-      const mother = hh.members.find(m => (m.relationship === 'ម្តាយ' || m.relationship === 'ប្រពន្ធ') && m.gender === 'ស្រី');
-      if (mother) {
-        motherName = mother.name;
-        motherOccupation = mother.occupation || 'កសិករ';
-      }
-    }
-
-    if (!fatherName && !motherName && hh) {
-      const head = hh.members.find(m => m.relationship === 'ប្តី' || m.relationship === 'ឪពុក') || hh.members[0];
-      if (head && head.name !== citizen.name) {
-        if (head.gender === 'ប្រុស') {
-          fatherName = head.name;
-        } else {
-          motherName = head.name;
+      if (!motherName) {
+        const mMem = hh.members.find(m => (m.relationship === 'ម្តាយ' || m.relationship === 'ប្រពន្ធ') && m.gender === 'ស្រី');
+        if (mMem) {
+          motherName = mMem.name;
+          motherOccupation = mMem.occupation || motherOccupation;
         }
       }
     }
 
-    // Split name into last and first name
-    const nameParts = citizen.name.trim().split(/\s+/);
-    const lastNameKh = nameParts[0] || citizen.name;
-    const firstNameKh = nameParts.slice(1).join(' ') || nameParts[0];
-
-    // Format student ID code e.g. ST-2026-001
-    const studentCode = `ST-2026-${String(studentIdSeq).padStart(3, '0')}`;
-
-    // Estimated standard height & weight based on age (WHO child growth reference)
-    // 3 yrs: ~94cm, 14kg | 4 yrs: ~102cm, 16kg | 5 yrs: ~109cm, 18kg | 6 yrs: ~115cm, 20kg
-    const approxYears = months > 0 ? months / 12 : citizen.age;
-    const baseHeight = Math.round(75 + approxYears * 6.5 + (studentIdSeq % 5) - 2);
-    const baseWeight = Math.round(10 + approxYears * 1.7 + (studentIdSeq % 3) - 1);
-
-    // Eye examination simulation (90% normal, 7% glasses, 3% impaired)
-    let eyeCheck: EyeCheckResult = 'normal';
-    if (studentIdSeq % 17 === 0) eyeCheck = 'glasses';
-    else if (studentIdSeq % 23 === 0) eyeCheck = 'impaired';
-
-    // Poor card simulation (ID-Poor 1, ID-Poor 2, Vulnerable, None)
-    let poorCard: PoorCardStatus = 'none';
-    if (studentIdSeq % 7 === 0) poorCard = 'idpoor1';
-    else if (studentIdSeq % 5 === 0) poorCard = 'idpoor2';
-    else if (studentIdSeq % 11 === 0) poorCard = 'vulnerable';
-
-    const commune = village === 'មុខឈ្នាង' ? 'ស្វាយរលំ' : 'ស្វាយរលំ';
-    const district = 'ស្ទឹងសែន';
-    const province = 'កំពង់ធំ';
+    const studentCode = `ST-2027-${String(seq).padStart(3, '0')}`;
+    const groupNumMatch = /^\s*(\d+)/.exec(hhCode);
 
     students.push({
-      id: `student-${citizen.id}-${studentIdSeq}`,
+      id: `student-2027-${seq}`,
       studentCode,
-      name: citizen.name,
-      lastNameKh,
-      firstNameKh,
+      name: raw.name,
+      lastNameKh: raw.lastNameKh,
+      firstNameKh: raw.firstNameKh,
       latinName: '',
-      gender: citizen.gender === 'ស្រី' ? 'ស្រី' : 'ប្រុស',
-      dob: citizen.dob,
-      age: citizen.age,
-      ageMonths: months,
-      academicYear: '២០២៥-២០២៦',
-      grade,
-      section,
-      previousGrade: isGrade1 ? 'មត្តេយ្យកម្រិតខ្ពស់' : 'គ្មាន (កុមារតូច)',
-      previousSchool: isGrade1 ? 'ប.សរោគ (មត្តេយ្យសហគមន៍)' : '',
-      enrollmentDate: isGrade1 ? '01/10/2025' : '15/10/2025',
+      gender: raw.gender,
+      dob: raw.dob,
+      age: raw.age,
+      ageMonths: raw.ageMonths,
+      academicYear: raw.academicYear,
+      grade: raw.grade,
+      section: raw.section,
+      previousGrade: raw.grade === 'ថ្នាក់ទី១' ? 'មត្តេយ្យសិក្សា' : '',
+      previousSchool: isOutside ? `មកពីភូមិ ${raw.pobVillage}` : '',
+      enrollmentDate: '01/10/2026',
       school: 'ប.សរោគ',
       status: 'active',
 
-      pobVillage: village,
-      pobCommune: commune,
-      pobDistrict: district,
-      pobProvince: province,
+      pobVillage,
+      pobCommune: raw.pobCommune,
+      pobDistrict: raw.pobDistrict,
+      pobProvince: raw.pobProvince,
 
-      houseNumber: `H-${citizen.householdCode || citizen.householdId}`,
-      groupNumber: `ក្រុម ${String(citizen.householdId).replace(/\D/g, '') || '១'}`,
-      currentVillage: village,
-      currentCommune: commune,
-      currentDistrict: district,
-      currentProvince: province,
-      householdCode: citizen.householdCode || String(citizen.householdId),
+      houseNumber: hhCode ? `H-${hhCode}` : undefined,
+      groupNumber: groupNumMatch ? `ក្រុម ${groupNumMatch[1]}` : undefined,
+      currentVillage,
+      currentCommune: 'ស្ពានស្រែង',
+      currentDistrict: 'ភ្នំស្រុក',
+      currentProvince: 'បន្ទាយមានជ័យ',
+      householdCode: hhCode || undefined,
 
-      heightCm: baseHeight,
-      weightKg: baseWeight,
-      eyeCheck,
-      poorCard,
-      healthNotes: eyeCheck === 'glasses' ? 'ពាក់វ៉ែនតាពិនិត្យភ្នែកប្រចាំឆមាស' : '',
+      heightCm: raw.heightCm,
+      weightKg: raw.weightKg,
+      eyeCheck: raw.eyeCheck,
+      poorCard: 'none',
+      disability: raw.disability,
+      healthNotes: raw.healthNotes,
 
       fatherName: fatherName || 'មិនបានកត់ត្រា',
       fatherLiving: true,
-      fatherOccupation: fatherOccupation,
-      fatherPhone: fatherName ? `0${(90 + (studentIdSeq % 9)).toString()} ${Math.floor(100000 + Math.random() * 899999)}` : '',
+      fatherOccupation,
+      fatherPhone: raw.fatherPhone || raw.phone,
+      fatherAddress: raw.fatherVillage ? `ភូមិ${raw.fatherVillage}` : undefined,
 
       motherName: motherName || 'មិនបានកត់ត្រា',
       motherLiving: true,
-      motherOccupation: motherOccupation,
-      motherPhone: motherName ? `0${(88 + (studentIdSeq % 11)).toString()} ${Math.floor(100000 + Math.random() * 899999)}` : '',
+      motherOccupation,
+      motherPhone: raw.motherPhone,
+      motherAddress: raw.motherVillage ? `ភូមិ${raw.motherVillage}` : undefined,
 
-      guardianName: fatherName || motherName || '',
-      guardianRelationship: fatherName ? 'ឪពុក' : (motherName ? 'ម្តាយ' : 'អាណាព្យាបាល'),
-      guardianOccupation: fatherOccupation || motherOccupation || 'កសិករ',
+      guardianName: raw.guardianName || fatherName || motherName || '',
+      guardianRelationship: raw.guardianRelationship,
+      guardianOccupation: raw.guardianOccupation || 'កសិករ',
+      guardianPhone: raw.guardianPhone || raw.phone,
 
-      citizenId: citizen.id,
+      citizenId: matchedCitizen?.id,
       updatedAt: new Date().toISOString()
     });
+  });
 
-    studentIdSeq++;
-  }
-
-  // Sort by Grade (Grade 1 first, then Preschool) and then Name
   return students.sort((a, b) => {
-    if (a.grade !== b.grade) {
-      if (a.grade === 'ថ្នាក់ទី១') return -1;
-      if (b.grade === 'ថ្នាក់ទី១') return 1;
-    }
+    const rankDiff = gradeSortOrder(a.grade) - gradeSortOrder(b.grade);
+    if (rankDiff !== 0) return rankDiff;
+    if (a.section !== b.section) return a.section.localeCompare(b.section, 'km');
     return a.name.localeCompare(b.name, 'km');
   });
 }
 
 /**
- * Loads student records from localStorage, or initializes them from census
+ * Loads student records from localStorage, or initializes them from students2027.json + census
  */
 export function loadStudents(citizens: Citizen[], households: Household[]): StudentRecord[] {
   try {
@@ -233,16 +222,16 @@ export function getDefaultGradeForCitizen(citizen: Citizen): StudentGrade {
   if (citizen.age === 7) return 'ថ្នាក់ទី២';
   if (citizen.age === 6 || (months >= 70 && months <= 82)) return 'ថ្នាក់ទី១';
   if (months >= 60 || citizen.age === 5) return 'មត្តេយ្យកម្រិតខ្ពស់';
-  if (months >= 48 || citizen.age === 4) return 'មត្តេយ្យកម្រិតមធ្យម';
-  return 'មត្តេយ្យកម្រិតទាប';
+  if (months >= 48 || citizen.age === 4) return 'មត្តេយ្យចម្រុះ';
+  return 'មត្តេយ្យចម្រុះ';
 }
 
 /**
  * Creates a StudentRecord from a Census Citizen directly (for 1-click enrollment)
  */
 export function createStudentFromCitizen(
-  citizen: Citizen, 
-  households: Household[], 
+  citizen: Citizen,
+  households: Household[],
   grade?: StudentGrade,
   section: string = 'ក'
 ): StudentRecord {
@@ -275,8 +264,8 @@ export function createStudentFromCitizen(
 
   const months = calculateAgeInMonths(citizen.dob, citizen.age);
 
-  const idNum = Math.floor(100 + Math.random() * 900);
-  const studentCode = `ST-2026-${idNum}`;
+  const idNum = Math.floor(400 + Math.random() * 599);
+  const studentCode = `ST-2027-${idNum}`;
 
   return {
     id: `student-${citizen.id}-${Date.now()}`,
@@ -289,7 +278,7 @@ export function createStudentFromCitizen(
     dob: citizen.dob,
     age: citizen.age,
     ageMonths: months,
-    academicYear: '២០២៥-២០២៦',
+    academicYear: '២០២៦-២០២៧',
     grade: resolvedGrade,
     section,
     previousGrade: 'គ្មាន (មកពីជំរឿនប្រជាជន)',
@@ -298,16 +287,16 @@ export function createStudentFromCitizen(
     status: 'active',
 
     pobVillage: village,
-    pobCommune: 'ស្វាយរលំ',
-    pobDistrict: 'ស្ទឹងសែន',
-    pobProvince: 'កំពង់ធំ',
+    pobCommune: 'ស្ពានស្រែង',
+    pobDistrict: 'ភ្នំស្រុក',
+    pobProvince: 'បន្ទាយមានជ័យ',
 
     houseNumber: `H-${citizen.householdCode || citizen.householdId}`,
     groupNumber: `ក្រុម ${String(citizen.householdId).replace(/\D/g, '') || '១'}`,
     currentVillage: village,
-    currentCommune: 'ស្វាយរលំ',
-    currentDistrict: 'ស្ទឹងសែន',
-    currentProvince: 'កំពង់ធំ',
+    currentCommune: 'ស្ពានស្រែង',
+    currentDistrict: 'ភ្នំស្រុក',
+    currentProvince: 'បន្ទាយមានជ័យ',
     householdCode: citizen.householdCode || String(citizen.householdId),
 
     heightCm: Math.round(75 + citizen.age * 6.5),

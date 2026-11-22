@@ -1,4 +1,5 @@
 import React from 'react';
+import { useReportVisibility } from '../contexts/ReportVisibilityContext';
 
 interface OfficialReportHeaderProps {
   title: string;
@@ -13,10 +14,20 @@ export const OfficialReportHeader: React.FC<OfficialReportHeaderProps> = ({
   academicYear = 'ឆ្នាំសិក្សា ២០២៦ - ២០២៧',
   showOnScreen = true,
 }) => {
+  const { hideHeaderFooter } = useReportVisibility();
+
   return (
-    <div className={`${showOnScreen ? 'block' : 'hidden print:block'} bg-white print:bg-transparent rounded-xl p-5 sm:p-6 mb-6 border border-slate-200 print:border-0 print:p-0 print:mb-2 shadow-xs print:shadow-none text-slate-900`}>
-      {/* Top Ministry & Kingdom Header */}
-      <div className="flex flex-col sm:flex-row print:flex-row items-center sm:items-start print:items-start justify-between gap-4 pb-4 print:pb-2 border-b-2 border-slate-800 print:border-b-2 print:border-slate-900">
+    <div
+      className={`${showOnScreen ? 'block' : 'hidden print:block'} bg-white print:bg-transparent rounded-xl ${
+        hideHeaderFooter ? 'p-3 sm:p-4 mb-3 sm:mb-4' : 'p-5 sm:p-6 mb-6'
+      } border border-slate-200 print:border-0 print:p-0 print:mb-2 shadow-xs print:shadow-none text-slate-900`}
+    >
+      {/* Top Ministry & Kingdom Header (Hidden on screen when hideHeaderFooter=true, always printed) */}
+      <div
+        className={`${
+          hideHeaderFooter ? 'hidden print:flex' : 'flex'
+        } flex-col sm:flex-row print:flex-row items-center sm:items-start print:items-start justify-between gap-4 pb-4 print:pb-2 border-b-2 border-slate-800 print:border-b-2 print:border-slate-900`}
+      >
         {/* Left Side: Ministry & School Hierarchy */}
         <div className="text-center sm:text-left print:text-left space-y-1 print:space-y-0.5 text-xs sm:text-[13px] print:text-[11px] leading-relaxed">
           <p className="font-bold text-slate-950 text-sm sm:text-base print:text-xs">ក្រសួងអប់រំ យុវជន និងកីឡា</p>
@@ -47,17 +58,17 @@ export const OfficialReportHeader: React.FC<OfficialReportHeaderProps> = ({
       </div>
 
       {/* Main Report Title */}
-      <div className="text-center mt-5 print:mt-2 space-y-1.5 print:space-y-0.5">
-        <h2 className="text-base sm:text-xl print:text-sm font-black text-slate-950 uppercase tracking-tight">
+      <div className={`text-center ${hideHeaderFooter ? 'mt-0 print:mt-2' : 'mt-5 print:mt-2'} space-y-1 print:space-y-0.5`}>
+        <h2 className="text-sm sm:text-xl print:text-sm font-black text-slate-950 uppercase tracking-tight">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-xs sm:text-sm text-slate-700 font-medium max-w-2xl mx-auto">
+          <p className="text-[11px] sm:text-sm text-slate-700 font-medium max-w-2xl mx-auto">
             {subtitle}
           </p>
         )}
         {academicYear && (
-          <p className="text-xs font-bold text-blue-900 print:text-slate-800 tracking-wide">
+          <p className="text-[11px] sm:text-xs font-bold text-blue-900 print:text-slate-800 tracking-wide">
             {academicYear}
           </p>
         )}

@@ -32,22 +32,22 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
   const [dob, setDob] = useState('');
   const [age, setAge] = useState<number>(6);
 
-  const [academicYear, setAcademicYear] = useState('២០២៥-២០២៦');
+  const [academicYear, setAcademicYear] = useState('២០២៦-២០២៧');
   const [grade, setGrade] = useState<string>('ថ្នាក់ទី១');
   const [section, setSection] = useState('ក');
   const [previousGrade, setPreviousGrade] = useState('');
-  const [enrollmentDate, setEnrollmentDate] = useState('01/10/2025');
+  const [enrollmentDate, setEnrollmentDate] = useState('01/10/2026');
   const [status, setStatus] = useState<StudentStatus>('active');
 
   const [pobVillage, setPobVillage] = useState('រោគ');
-  const [pobCommune, setPobCommune] = useState('ស្វាយរលំ');
-  const [pobDistrict, setPobDistrict] = useState('ស្ទឹងសែន');
-  const [pobProvince, setPobProvince] = useState('កំពង់ធំ');
+  const [pobCommune, setPobCommune] = useState('ស្ពានស្រែង');
+  const [pobDistrict, setPobDistrict] = useState('ភ្នំស្រុក');
+  const [pobProvince, setPobProvince] = useState('បន្ទាយមានជ័យ');
 
   const [currentVillage, setCurrentVillage] = useState('រោគ');
-  const [currentCommune, setCurrentCommune] = useState('ស្វាយរលំ');
-  const [currentDistrict, setCurrentDistrict] = useState('ស្ទឹងសែន');
-  const [currentProvince, setCurrentProvince] = useState('កំពង់ធំ');
+  const [currentCommune, setCurrentCommune] = useState('ស្ពានស្រែង');
+  const [currentDistrict, setCurrentDistrict] = useState('ភ្នំស្រុក');
+  const [currentProvince, setCurrentProvince] = useState('បន្ទាយមានជ័យ');
   const [householdCode, setHouseholdCode] = useState('1R1');
 
   const [heightCm, setHeightCm] = useState<number | ''>(115);
@@ -121,15 +121,15 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
       setGuardianOccupation(studentToEdit.guardianOccupation || 'កសិករ');
       setGuardianPhone(studentToEdit.guardianPhone || '');
     } else {
-      const randId = Math.floor(100 + Math.random() * 900);
-      setStudentCode(`ST-2026-${randId}`);
+      const randId = Math.floor(400 + Math.random() * 599);
+      setStudentCode(`ST-2027-${randId}`);
       setName('');
       setLatinName('');
       setGender('ប្រុស');
       setDob('15/Apr/2020');
       setAge(6);
 
-      setAcademicYear('២០២៥-២០២៦');
+      setAcademicYear('២០២៦-២០២៧');
       setGrade('ថ្នាក់ទី១');
       setSection('ក');
       setPreviousGrade('មត្តេយ្យកម្រិតខ្ពស់');
@@ -137,14 +137,14 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
       setStatus('active');
 
       setPobVillage('រោគ');
-      setPobCommune('ស្វាយរលំ');
-      setPobDistrict('ស្ទឹងសែន');
-      setPobProvince('កំពង់ធំ');
+      setPobCommune('ស្ពានស្រែង');
+      setPobDistrict('ភ្នំស្រុក');
+      setPobProvince('បន្ទាយមានជ័យ');
 
       setCurrentVillage('រោគ');
-      setCurrentCommune('ស្វាយរលំ');
-      setCurrentDistrict('ស្ទឹងសែន');
-      setCurrentProvince('កំពង់ធំ');
+      setCurrentCommune('ស្ពានស្រែង');
+      setCurrentDistrict('ភ្នំស្រុក');
+      setCurrentProvince('បន្ទាយមានជ័យ');
       setHouseholdCode('1R1');
 
       setHeightCm(115);
@@ -442,7 +442,8 @@ export const StudentFormModal: React.FC<StudentFormModalProps> = ({
                   >
                     <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យកម្រិតទាប (អាយុ ៣ ឆ្នាំ)</option>
                     <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យកម្រិតមធ្យម (អាយុ ៤ ឆ្នាំ)</option>
-                    <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យកម្រិតខ្ពស់ (អាយុ ៥ ឆ្នាំ)</option>
+                    <option value="មត្តេយ្យចម្រុះ">មត្តេយ្យ-ចម្រុះ (៣-៥ ឆ្នាំ)</option>
+                    <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យ-កម្រិតខ្ពស់ (អាយុ ៥ ឆ្នាំ)</option>
                     <option value="ថ្នាក់ទី១">ថ្នាក់ទី១ (បឋមសិក្សា ៧០-៨២ខែ)</option>
                     <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
                     <option value="ថ្នាក់ទី៣">ថ្នាក់ទី៣</option>

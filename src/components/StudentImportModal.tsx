@@ -522,6 +522,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({
               <option value="auto">ស្វ័យប្រវត្តិតាមអាយុ (ណែនាំ)</option>
               <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យកម្រិតទាប</option>
               <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យកម្រិតមធ្យម</option>
+              <option value="មត្តេយ្យចម្រុះ">មត្តេយ្យចម្រុះ</option>
               <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យកម្រិតខ្ពស់</option>
               <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
               <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>

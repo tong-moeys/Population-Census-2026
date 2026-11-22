@@ -42,6 +42,7 @@ import {
 import { StudentProfileModal } from './StudentProfileModal';
 import { StudentFormModal } from './StudentFormModal';
 import { StudentImportModal } from './StudentImportModal';
+import { OfficialReportHeader } from './OfficialReportHeader';
 import { OfficialSignatureSection } from './OfficialSignatureSection';
 
 type StudentAgeFilter = 'all' | '0-2' | 'group2' | '12+' | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
@@ -189,9 +190,10 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
           if (g === 'ថ្នាក់ទី៥') return 5;
           if (g === 'ថ្នាក់ទី៦') return 6;
           if (g.includes('កម្រិតខ្ពស់')) return 7;
-          if (g.includes('កម្រិតមធ្យម')) return 8;
-          if (g.includes('កម្រិតទាប')) return 9;
-          return 10;
+          if (g.includes('ចម្រុះ')) return 8;
+          if (g.includes('កម្រិតមធ្យម')) return 9;
+          if (g.includes('កម្រិតទាប')) return 10;
+          return 11;
         };
         const rankDiff = gradeRank(a.grade) - gradeRank(b.grade);
         if (rankDiff !== 0) return sortOrder === 'asc' ? rankDiff : -rankDiff;
@@ -398,6 +400,13 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
 
   return (
     <div className="space-y-6 print:space-y-3">
+      {/* Official MoEYS Administrative Header */}
+      <OfficialReportHeader
+        title={`តារាងព័ត៌មានលម្អិតសិស្ស ${gradeFilter !== 'all' ? `(${gradeFilter})` : ''}`}
+        subtitle={`ភូមិចំណុះ៖ ភូមិរោគ និងភូមិមុខឈ្នាង • សរុប៖ ${filteredStudents.length} នាក់ (ស្រី ${filteredStudents.filter(s => s.gender === 'ស្រី').length} នាក់)`}
+        academicYear="ឆ្នាំសិក្សា ២០២៦ - ២០២៧"
+      />
+
       {/* Top Banner & Title */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 sm:p-7 shadow-lg relative overflow-hidden no-print">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -631,7 +640,8 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
             <option value="preschool">ថ្នាក់មត្តេយ្យទាំងអស់</option>
             <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យកម្រិតទាប (៣ ឆ្នាំ)</option>
             <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យកម្រិតមធ្យម (៤ ឆ្នាំ)</option>
-            <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យកម្រិតខ្ពស់ (៥ ឆ្នាំ)</option>
+            <option value="មត្តេយ្យចម្រុះ">មត្តេយ្យ-ចម្រុះ (៣-៥ ឆ្នាំ)</option>
+            <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យ-កម្រិតខ្ពស់ (៥ ឆ្នាំ)</option>
             <option value="grade1">ថ្នាក់ទី១ (Grade 1)</option>
             <option value="ថ្នាក់ទី២">ថ្នាក់ទី២ (Grade 2)</option>
             <option value="ថ្នាក់ទី៣">ថ្នាក់ទី៣ (Grade 3)</option>
@@ -931,38 +941,6 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
         </div>
       </div>
 
-      {/* Official Print Header (Only visible when printing) */}
-      <div className="hidden print:block font-khmer pb-4 border-b-2 border-slate-800">
-        <div className="flex justify-between items-start">
-          <div className="text-left">
-            <p className="text-xs font-bold text-slate-700">ក្រសួងអប់រំ យុវជន និងកីឡា</p>
-            <p className="text-xs text-slate-600">មន្ទីរអប់រំ យុវជន និងកីឡាខេត្តកំពង់ធំ</p>
-            <p className="text-xs text-slate-600">ការិយាល័យអប់រំ យុវជន និងកីឡា ស្រុកស្ទឹងសែន</p>
-            <p className="text-sm font-bold text-slate-900 mt-1">សាលាបឋមសិក្សារោគ</p>
-          </div>
-
-          <div className="text-right">
-            <p className="text-xs font-bold text-slate-900">ព្រះរាជាណាចក្រកម្ពុជា</p>
-            <p className="text-xs font-bold text-slate-800">ជាតិ សាសនា ព្រះមហាក្សត្រ</p>
-            <div className="flex justify-end my-1">
-              <span className="w-16 h-0.5 bg-amber-500 rounded-full" />
-            </div>
-            <p className="text-[11px] text-slate-600">
-              ឆ្នាំសិក្សា៖ <strong>២០២៥-២០២៦</strong>
-            </p>
-          </div>
-        </div>
-
-        <div className="text-center mt-3">
-          <h2 className="text-base font-bold text-slate-900">
-            តារាងព័ត៌មានលម្អិតសិស្ស {gradeFilter !== 'all' ? `(${gradeFilter})` : ''} 
-          </h2>
-          <p className="text-xs text-slate-600">
-            ភូមិចំណុះ៖ ភូមិរោគ និងភូមិមុខឈ្នាង | សរុប៖ <strong>{filteredStudents.length} នាក់</strong> (ស្រី {filteredStudents.filter(s => s.gender === 'ស្រី').length} នាក់)
-          </p>
-        </div>
-      </div>
-
       {/* Density and Table Display Controls Bar */}
       <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs no-print">
         <div className="flex flex-wrap items-center gap-2">
@@ -1065,6 +1043,7 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
               >
                 <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យទាប</option>
                 <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យមធ្យម</option>
+                <option value="មត្តេយ្យចម្រុះ">មត្តេយ្យចម្រុះ</option>
                 <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យខ្ពស់</option>
                 <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
                 <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
@@ -1435,17 +1414,15 @@ export const StudentInformationView: React.FC<StudentInformationViewProps> = ({
       </div>
 
       {/* Official Signatures Section for Official MoEYS Printouts */}
-      <div className="mt-8 pt-6 border-t border-slate-300">
-        <OfficialSignatureSection
-          language={language}
-          defaultLocation="រោគ"
-          reportType="school"
-          defaultSignatories={{
-            centerTitle: 'អ្នកទទួលបន្ទុកស្ថិតិ / គ្រូបន្ទុកថ្នាក់',
-            rightTitle: 'នាយកសាលាបឋមសិក្សារោគ'
-          }}
-        />
-      </div>
+      <OfficialSignatureSection
+        language={language}
+        defaultLocation="រោគ"
+        reportType="school"
+        defaultSignatories={{
+          centerTitle: 'អ្នកទទួលបន្ទុកស្ថិតិ / គ្រូបន្ទុកថ្នាក់',
+          rightTitle: 'នាយកសាលាបឋមសិក្សារោគ'
+        }}
+      />
 
       {/* Student Profile Modal */}
       {selectedStudentForProfile && (

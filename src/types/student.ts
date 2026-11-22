@@ -1,7 +1,7 @@
 export type EyeCheckResult = 'normal' | 'impaired' | 'glasses' | 'untested';
 export type PoorCardStatus = 'none' | 'idpoor1' | 'idpoor2' | 'vulnerable';
 export type StudentStatus = 'active' | 'transferred_in' | 'transferred_out' | 'dropped_out' | 'graduated';
-export type StudentGrade = 'មត្តេយ្យកម្រិតទាប' | 'មត្តេយ្យកម្រិតមធ្យម' | 'មត្តេយ្យកម្រិតខ្ពស់' | 'ថ្នាក់ទី១' | 'ថ្នាក់ទី២' | 'ថ្នាក់ទី៣' | 'ថ្នាក់ទី៤' | 'ថ្នាក់ទី៥' | 'ថ្នាក់ទី៦';
+export type StudentGrade = 'មត្តេយ្យកម្រិតទាប' | 'មត្តេយ្យកម្រិតមធ្យម' | 'មត្តេយ្យកម្រិតខ្ពស់' | 'មត្តេយ្យចម្រុះ' | 'ថ្នាក់ទី១' | 'ថ្នាក់ទី២' | 'ថ្នាក់ទី៣' | 'ថ្នាក់ទី៤' | 'ថ្នាក់ទី៥' | 'ថ្នាក់ទី៦';
 
 export interface StudentRecord {
   id: string; // Unique student code or UUID (e.g. ST-2026-001)

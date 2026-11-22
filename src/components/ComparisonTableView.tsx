@@ -42,7 +42,6 @@ import {
   generatePreschoolBaseline,
   syncPreschoolRowsWithSystemData,
   exportComparisonToCSV,
-  DEFAULT_COMPARISON_ROWS,
   loadSavedPrimaryComparisonRows,
   savePrimaryComparisonRows,
   computePrimaryRowRates,
@@ -168,7 +167,9 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
   const [activeMode, setActiveMode] = useState<'primary' | 'preschool' | 'school-stats'>('primary');
 
   // Pre-school 3-5 Years Data State
-  const [preschoolRows, setPreschoolRows] = useState<VillageComparisonRow[]>(() => loadSavedComparisonRows());
+  const [preschoolRows, setPreschoolRows] = useState<VillageComparisonRow[]>(() =>
+    loadSavedComparisonRows(citizens, students)
+  );
 
   // Primary 6+ Years & Group 2 Data State (Auto-populated from citizens & students)
   const [primaryRows, setPrimaryRows] = useState<PrimaryVillageComparisonRow[]>(() => 
@@ -367,7 +368,7 @@ export const ComparisonTableView: React.FC<ComparisonTableViewProps> = ({
 
   const handleResetPreschoolToBaseline = () => {
     if (window.confirm(language === 'km' ? 'តើអ្នកពិតជាចង់កំណត់ទិន្នន័យមត្តេយ្យលំនាំដើមឡើងវិញមែនទេ?' : 'Reset to default preschool baseline numbers?')) {
-      const resetRows = DEFAULT_COMPARISON_ROWS.map(computeRowRates);
+      const resetRows = generatePreschoolBaseline(citizens, students);
       setPreschoolRows(resetRows);
       saveComparisonRows(resetRows);
       triggerSaveToast();

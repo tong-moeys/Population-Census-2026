@@ -18,6 +18,7 @@ import { CitizenFormModal } from './components/CitizenFormModal';
 import { translations } from './utils/translations';
 import { StudentRecord, StudentGrade } from './types/student';
 import { loadStudents, saveStudents, createStudentFromCitizen, getDefaultGradeForCitizen } from './utils/studentData';
+import { ReportVisibilityProvider } from './contexts/ReportVisibilityContext';
 import { 
   auth, 
   signInWithGoogle, 
@@ -31,7 +32,7 @@ import {
 } from './firebase';
 
 export const App: React.FC = () => {
-  // Initialize with the 2,071 census records
+  // Initialize with the census dataset
   const initialData = useMemo(() => loadParsedCensus(), []);
   const [citizens, setCitizens] = useState<Citizen[]>(initialData.citizens);
   const [language, setLanguage] = useState<Language>('km');
@@ -620,6 +621,7 @@ export const App: React.FC = () => {
   };
 
   return (
+    <ReportVisibilityProvider hideHeaderFooter={hideHeaderFooter}>
     <div className="min-h-screen bg-slate-50 print:bg-white flex flex-col font-khmer">
       {/* Toast Notification */}
       {syncToast && (
@@ -629,27 +631,47 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Compact Docked Top Controls when Header & Footer are hidden (Full View & Print Ready) */}
+      {/* Left-Aligned Grouped Top Controls when Header & Footer are hidden */}
       {hideHeaderFooter && (
-        <div className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs px-2 sm:px-4 py-1.5 flex justify-end no-print print:hidden">
-          <div className="inline-flex flex-wrap items-center justify-end gap-1.5 text-xs">
+        <div className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs px-2 sm:px-4 py-1.5 flex flex-wrap items-center justify-start gap-2 no-print print:hidden">
+          {/* Group 1: Navigation Select Tab & Header/Footer Toggle */}
+          <div className="inline-flex flex-wrap items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
             <select
               value={currentTab}
               onChange={(e) => setCurrentTab(e.target.value as ViewTab)}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20"
               aria-label="Select Tab"
             >
-              <option value="comparison">{t.comparisonTable}</option>
-              <option value="school-report">{t.schoolReport}</option>
-              <option value="enrollment">{t.enrollmentCampaign}</option>
-              <option value="students">{t.students}</option>
-              <option value="citizens">{t.citizens}</option>
-              <option value="households">{t.households}</option>
-              <option value="dashboard">{t.dashboard}</option>
-              <option value="pyramid">{t.pyramid}</option>
-              <option value="analytics">{t.analytics}</option>
+              <optgroup label={language === 'km' ? 'របាយការណ៍ & ស្ថិតិ' : 'Reports & Stats'}>
+                <option value="comparison">{t.comparisonTable}</option>
+                <option value="school-report">{t.schoolReport}</option>
+                <option value="enrollment">{t.enrollmentCampaign}</option>
+              </optgroup>
+              <optgroup label={language === 'km' ? 'បញ្ជីឈ្មោះ & គ្រួសារ' : 'Rosters & Households'}>
+                <option value="students">{t.students}</option>
+                <option value="citizens">{t.citizens}</option>
+                <option value="households">{t.households}</option>
+              </optgroup>
+              <optgroup label={language === 'km' ? 'សង្ខេប & វិភាគ' : 'Summary & Analytics'}>
+                <option value="dashboard">{t.dashboard}</option>
+                <option value="pyramid">{t.pyramid}</option>
+                <option value="analytics">{t.analytics}</option>
+              </optgroup>
             </select>
 
+            <button
+              type="button"
+              onClick={() => setHideHeaderFooter(false)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-200 text-slate-800 font-semibold border border-slate-200 transition cursor-pointer"
+              title={language === 'km' ? 'បង្ហាញ Header និង Footer ពេញឡើងវិញ' : 'Show Full Header & Footer'}
+            >
+              <PanelTopOpen className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{language === 'km' ? 'បង្ហាញ Header / Footer' : 'Show Header/Footer'}</span>
+            </button>
+          </div>
+
+          {/* Group 2: Print & Export */}
+          <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1 text-xs">
             <button
               type="button"
               onClick={handlePrint}
@@ -669,28 +691,21 @@ export const App: React.FC = () => {
               <Download className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden sm:inline">CSV</span>
             </button>
+          </div>
 
+          {/* Group 3: Data Entry */}
+          <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1 text-xs">
             <button
               type="button"
               onClick={() => {
                 setCitizenToEdit(null);
                 setIsFormModalOpen(true);
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer"
               title={t.addCitizen}
             >
               <UserPlus className="w-3.5 h-3.5 text-blue-600" />
               <span className="hidden md:inline">{t.addCitizen}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setHideHeaderFooter(false)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold border border-slate-200 transition cursor-pointer"
-              title={language === 'km' ? 'បង្ហាញ Header និង Footer ពេញឡើងវិញ' : 'Show Full Header & Footer'}
-            >
-              <PanelTopOpen className="w-3.5 h-3.5 text-indigo-600" />
-              <span>{language === 'km' ? 'បង្ហាញ Header / Footer' : 'Show Header/Footer'}</span>
             </button>
           </div>
         </div>
@@ -732,6 +747,8 @@ export const App: React.FC = () => {
         {currentTab === 'dashboard' && (
           <DashboardView
             stats={stats}
+            citizens={citizens}
+            households={households}
             language={language}
             onNavigateTab={setCurrentTab}
             onFilterByOccupation={handleFilterByOccupation}
@@ -875,11 +892,12 @@ export const App: React.FC = () => {
               <span className="text-emerald-600 font-medium">Firebase Connected</span>
             </div>
             <div>
-              <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ និងស្ថិតិតំបន់សេវាសាលារៀន ឆ្នាំ២០២៦' : 'Catchment Census & Demographic Management System 2026'}</span>
+              <span>{language === 'km' ? 'ប្រព័ន្ធគ្រប់គ្រងទិន្នន័យប្រជាពលរដ្ឋ និងស្ថិតិតំបន់សេវាសាលារៀន ឆ្នាំ២០២៦-២០២៧' : 'Catchment Census & Demographic Management System 2026-2027'}</span>
             </div>
           </div>
         </footer>
       )}
     </div>
+    </ReportVisibilityProvider>
   );
 };

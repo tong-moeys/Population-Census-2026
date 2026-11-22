@@ -14,6 +14,7 @@ import {
 } from '../utils/khmerDateUtils';
 import { Language } from '../types/census';
 import { OfficialReportFooter } from './OfficialReportFooter';
+import { useReportVisibility } from '../contexts/ReportVisibilityContext';
 
 interface SignatoryTitles {
   leftHeading: string;
@@ -32,14 +33,18 @@ interface OfficialSignatureSectionProps {
   defaultLocation?: string;
   defaultSignatories?: Partial<SignatoryTitles>;
   reportType?: 'school' | 'enrollment' | 'census';
+  alwaysShowOnScreen?: boolean;
 }
 
 export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> = ({
   language = 'km',
   defaultLocation = 'រោគ',
   defaultSignatories,
-  reportType = 'school'
+  reportType = 'school',
+  alwaysShowOnScreen = false
 }) => {
+  const { hideHeaderFooter } = useReportVisibility();
+  const isPrintOnly = !alwaysShowOnScreen && hideHeaderFooter;
   const [config, setConfig] = useState<SignatureDateConfig>(() => {
     const base = getDefaultSignatureConfig();
     return {
@@ -118,7 +123,7 @@ export const OfficialSignatureSection: React.FC<OfficialSignatureSectionProps> =
   const solarDateStr = formatKhmerSolarDate(config);
 
   return (
-    <div className="pt-6 border-t-2 border-slate-300 mt-8 print:mt-3 print:pt-3 space-y-4 print:space-y-2 print:break-inside-avoid">
+    <div className={`${isPrintOnly ? 'hidden print:block' : 'block'} pt-6 border-t-2 border-slate-300 mt-8 print:mt-3 print:pt-3 space-y-4 print:space-y-2 print:break-inside-avoid`}>
       {/* Control bar hidden to preserve pristine official document look */}
 
       {/* Expanded Configuration Modal / Panel (Hidden during print) */}

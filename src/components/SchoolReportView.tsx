@@ -1264,13 +1264,6 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
             : undefined
         )}
 
-      {/* Official Signatures Block with Khmer Lunar & Solar dates (Shown on Print & Preview) */}
-      <OfficialSignatureSection
-        language={language}
-        defaultLocation="រោគ"
-        reportType="school"
-      />
-
       {/* MoEYS School Catchment Explanation Note */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-1.5 no-print">
         <div className="flex items-center gap-1.5 font-bold text-slate-800">
@@ -1283,6 +1276,13 @@ export const SchoolReportView: React.FC<SchoolReportViewProps> = ({
             : `• Host school Rouk Primary serves 2 feeder villages: Roak (${roakCitizens.length} residents, ${roakVillageRow.householdCount} HH) and Mukh Chhnang (${mukhChhnangCitizens.length} residents, ${mukhChhnangVillageRow.householdCount} HH), totaling ${citizens.length} residents (${grandTotalRow.householdCount} HH). Age cohorts match early childhood, pre-school, primary, and secondary education standards.`}
         </p>
       </div>
+
+      {/* Official Signatures Block with Khmer Lunar & Solar dates (Shown on Print & Preview) */}
+      <OfficialSignatureSection
+        language={language}
+        defaultLocation="រោគ"
+        reportType="school"
+      />
     </div>
   );
 };

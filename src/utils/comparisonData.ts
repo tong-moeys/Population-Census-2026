@@ -12,7 +12,7 @@ import { Citizen } from '../types/census';
 import { StudentRecord } from '../types/student';
 import { calculateAgeInMonths, parseDateOfBirth } from './enrollmentUtils';
 
-export const STORAGE_KEY_COMPARISON = 'moeys_comparison_table_2026_v1';
+export const STORAGE_KEY_COMPARISON = 'moeys_comparison_table_2027_v1';
 
 export const DEFAULT_COMPARISON_ROWS: VillageComparisonRow[] = [
   {
@@ -209,7 +209,7 @@ export function computeGrandTotal(rows: VillageComparisonRow[]): ComparisonGrand
   };
 }
 
-export function loadSavedComparisonRows(): VillageComparisonRow[] {
+export function loadSavedComparisonRows(citizens?: Citizen[], students?: StudentRecord[]): VillageComparisonRow[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_COMPARISON);
     if (raw) {
@@ -252,11 +252,17 @@ export function loadSavedComparisonRows(): VillageComparisonRow[] {
             })
           );
         }
+        if (citizens && students) {
+          return syncPreschoolRowsWithSystemData(rows, citizens, students, false);
+        }
         return rows;
       }
     }
   } catch (e) {
-    console.info('Using default comparison table data:', e);
+    console.info('Using baseline comparison table data:', e);
+  }
+  if (citizens && students) {
+    return generatePreschoolBaseline(citizens, students);
   }
   return [
     ...DEFAULT_COMPARISON_ROWS.map(computeRowRates),
@@ -634,7 +640,7 @@ export function exportComparisonToCSV(rows: VillageComparisonRow[], grandTotal: 
 // PRIMARY SCHOOL (AGE 6+ & GROUP 2) COMPARISON LOGIC & STORAGE
 // =========================================================================
 
-export const STORAGE_KEY_PRIMARY_COMPARISON = 'moeys_primary_comparison_table_2026_v3';
+export const STORAGE_KEY_PRIMARY_COMPARISON = 'moeys_primary_comparison_table_2027_v1';
 
 export function computePrimaryRowRates(
   row: Omit<PrimaryVillageComparisonRow, 
@@ -1278,7 +1284,7 @@ export function computeSchoolWideStatistics(
 
   // Grade stats
   const gradeOrder = [
-    'មត្តេយ្យកម្រិតទាប', 'មត្តេយ្យកម្រិតមធ្យម', 'មត្តេយ្យកម្រិតខ្ពស់',
+    'មត្តេយ្យកម្រិតទាប', 'មត្តេយ្យកម្រិតមធ្យម', 'មត្តេយ្យចម្រុះ', 'មត្តេយ្យកម្រិតខ្ពស់',
     'ថ្នាក់ទី១', 'ថ្នាក់ទី២', 'ថ្នាក់ទី៣', 'ថ្នាក់ទី៤', 'ថ្នាក់ទី៥', 'ថ្នាក់ទី៦'
   ];
 
@@ -1397,7 +1403,7 @@ export function computeSchoolWideStatistics(
 // VILLAGE × AGE MIGRATION (ចំណូល-ចំណាកស្រុក) & <100% / >100% CAUSE ANALYSIS
 // =========================================================================
 
-export const STORAGE_KEY_MIGRATION_OVERRIDES = 'moeys_village_age_migration_2026_v1';
+export const STORAGE_KEY_MIGRATION_OVERRIDES = 'moeys_village_age_migration_2027_v1';
 
 export function loadMigrationOverrides(): VillageMigrationOverrideMap {
   try {

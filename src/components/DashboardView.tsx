@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Users, 
   Home, 
@@ -12,11 +12,14 @@ import {
   GraduationCap,
   MapPin
 } from 'lucide-react';
-import { DemographicStats, Language, ViewTab } from '../types/census';
+import { Citizen, DemographicStats, Household, Language, ViewTab } from '../types/census';
 import { translations, translateOccupation, translateRole } from '../utils/translations';
+import { getEnrollmentChildren } from '../utils/enrollmentUtils';
 
 interface DashboardViewProps {
   stats: DemographicStats;
+  citizens?: Citizen[];
+  households?: Household[];
   language: Language;
   onNavigateTab: (tab: ViewTab) => void;
   onFilterByOccupation?: (occupation: string) => void;
@@ -25,12 +28,34 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   stats,
+  citizens = [],
+  households = [],
   language,
   onNavigateTab,
   onFilterByOccupation,
   onFilterByGender
 }) => {
   const t = translations[language];
+
+  const villageSummary = useMemo(() => {
+    const mukhCitizens = citizens.filter(c => (c.village || '').includes('មុខឈ្នាង'));
+    const roakCitizens = citizens.filter(c => !(c.village || '').includes('មុខឈ្នាង'));
+    const mukhHH = new Set(mukhCitizens.map(c => `${c.village || ''}_${c.householdCode || c.householdId}`)).size;
+    const roakHH = new Set(roakCitizens.map(c => `${c.village || ''}_${c.householdCode || c.householdId}`)).size;
+    const enrollment = getEnrollmentChildren(citizens, households);
+    const g1NotEnrolled = enrollment.group1Children.filter(c => c.enrollmentStatus === 'not_enrolled').length;
+    const g2NotEnrolled = enrollment.group2Children.filter(c => c.enrollmentStatus === 'not_enrolled').length;
+    return {
+      mukhPop: mukhCitizens.length,
+      mukhHH,
+      roakPop: roakCitizens.length,
+      roakHH,
+      g1Total: enrollment.stats.group1Total,
+      g1NotEnrolled,
+      g2Total: enrollment.stats.group2Total,
+      g2NotEnrolled
+    };
+  }, [citizens, households]);
 
   const malePercent = stats.totalPopulation > 0 
     ? ((stats.maleCount / stats.totalPopulation) * 100).toFixed(1) 
@@ -215,13 +240,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
               <MapPin className="w-3.5 h-3.5 text-amber-700" />
-              <span>{language === 'km' ? 'ភូមិមុខឈ្នាង (row 1 - 390)' : 'Mukh Chhnang Village (Row 1-390)'}</span>
+              <span>{language === 'km' ? 'ភូមិមុខឈ្នាង (លេខកូដ M)' : 'Mukh Chhnang Village (Code M)'}</span>
             </div>
             <h4 className="text-xl font-black text-slate-900 pt-1">
-              ៣៩០ <span className="text-sm font-semibold text-slate-600">{language === 'km' ? 'នាក់ (៧៥ ខ្នងផ្ទះ)' : 'residents (75 HH)'}</span>
+              {villageSummary.mukhPop.toLocaleString()} <span className="text-sm font-semibold text-slate-600">{language === 'km' ? `នាក់ (${villageSummary.mukhHH.toLocaleString()} គ្រួសារ)` : `residents (${villageSummary.mukhHH} HH)`}</span>
             </h4>
             <p className="text-xs text-amber-800">
-              {language === 'km' ? 'តំបន់សេវា៖ សាលាបឋមសិក្សា មុខឈ្នាង (ប.សមុខឈ្នាង)' : 'Catchment: Mukh Chhnang Primary School'}
+              {language === 'km' ? 'តំបន់សេវា៖ សាលាបឋមសិក្សា រោគ (ប.សរោគ)' : 'Catchment: Rouk Primary School'}
             </p>
           </div>
           <button
@@ -237,10 +262,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded-md">
               <MapPin className="w-3.5 h-3.5 text-blue-700" />
-              <span>{language === 'km' ? 'ភូមិរោគ (បន្ទាប់ពី row 390)' : 'Roak Village (After Row 390)'}</span>
+              <span>{language === 'km' ? 'ភូមិរោគ (លេខកូដ R)' : 'Roak Village (Code R)'}</span>
             </div>
             <h4 className="text-xl font-black text-slate-900 pt-1">
-              ១,៦៧២ <span className="text-sm font-semibold text-slate-600">{language === 'km' ? 'នាក់ (៥៨ ខ្នងផ្ទះ)' : 'residents (58 HH)'}</span>
+              {villageSummary.roakPop.toLocaleString()} <span className="text-sm font-semibold text-slate-600">{language === 'km' ? `នាក់ (${villageSummary.roakHH.toLocaleString()} គ្រួសារ)` : `residents (${villageSummary.roakHH} HH)`}</span>
             </h4>
             <p className="text-xs text-blue-800">
               {language === 'km' ? 'តំបន់សេវា៖ សាលាបឋមសិក្សា រោគ (ប.សរោគ)' : 'Catchment: Rouk Primary School'}
@@ -274,8 +299,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
             {language === 'km'
-              ? '• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ មត្តេយ្យសិក្សា)៖ ១០៦ នាក់ (មិនទាន់ចុះឈ្មោះ ៦៩ នាក់) • ក្រុម២ (អាយុ ៧០-៨២ខែ ថ្នាក់ទី១)៖ ៤៣ នាក់ (មិនទាន់ចុះឈ្មោះ ១៤ នាក់)។'
-              : '• Group 1 (Age 3-5 yrs Pre-school): 106 children (69 not enrolled) • Group 2 (Age 70-82 mos Grade 1): 43 children (14 not enrolled).'}
+              ? `• ក្រុម១ (អាយុ ៣-៥ឆ្នាំ មត្តេយ្យសិក្សា)៖ ${villageSummary.g1Total.toLocaleString()} នាក់ (មិនទាន់ចុះឈ្មោះ ${villageSummary.g1NotEnrolled.toLocaleString()} នាក់) • ក្រុម២ (អាយុ ៧០-៨២ខែ ថ្នាក់ទី១)៖ ${villageSummary.g2Total.toLocaleString()} នាក់ (មិនទាន់ចុះឈ្មោះ ${villageSummary.g2NotEnrolled.toLocaleString()} នាក់)។`
+              : `• Group 1 (Age 3-5 yrs Pre-school): ${villageSummary.g1Total} children (${villageSummary.g1NotEnrolled} not enrolled) • Group 2 (Age 70-82 mos Grade 1): ${villageSummary.g2Total} children (${villageSummary.g2NotEnrolled} not enrolled).`}
           </p>
         </div>
 

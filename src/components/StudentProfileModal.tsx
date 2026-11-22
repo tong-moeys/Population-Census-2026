@@ -117,8 +117,8 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
           <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start text-center sm:text-left gap-4 pb-4 border-b-2 border-slate-800">
             <div>
               <p className="text-xs sm:text-sm font-bold text-slate-700">ក្រសួងអប់រំ យុវជន និងកីឡា</p>
-              <p className="text-xs font-medium text-slate-600">មន្ទីរអប់រំ យុវជន និងកីឡាខេត្តកំពង់ធំ</p>
-              <p className="text-xs font-medium text-slate-600">ការិយាល័យអប់រំ យុវជន និងកីឡា ស្រុកស្ទឹងសែន</p>
+              <p className="text-xs font-medium text-slate-600">មន្ទីរអប់រំ យុវជន និងកីឡាខេត្តបន្ទាយមានជ័យ</p>
+              <p className="text-xs font-medium text-slate-600">ការិយាល័យអប់រំ យុវជន និងកីឡា ស្រុកភ្នំស្រុក</p>
               <p className="text-sm font-bold text-blue-900 mt-0.5">សាលាបឋមសិក្សារោគ</p>
             </div>
 
@@ -312,6 +312,7 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
               language={language}
               defaultLocation="រោគ"
               reportType="school"
+              alwaysShowOnScreen
               defaultSignatories={{
                 centerTitle: 'គ្រូបន្ទុកថ្នាក់',
                 rightTitle: 'នាយកសាលាបឋមសិក្សារោគ'

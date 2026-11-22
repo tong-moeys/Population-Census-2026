@@ -1,82 +1,17 @@
 import rawCensusData from '../data/rawCensus.json';
+import rawStudents2027 from '../data/students2027.json';
 import { Citizen, DemographicStats, Household } from '../types/census';
+import { calculateAgeYears, formatDobCanonical, parseDateOfBirth } from './enrollmentUtils';
+import {
+  matchRawStudentsToCitizens,
+  ParsedRawStudent,
+  parseRawStudentRow,
+  resolveVillageFromHouseholdCode
+} from './studentMatcher';
 
 export function loadParsedCensus(): { citizens: Citizen[]; households: Household[]; stats: DemographicStats } {
   const citizens: Citizen[] = [];
   const rawArray = rawCensusData as unknown as Array<Record<string, (string | number)[]>>;
-
-  // Official Grade 1 roster (31 students) + Official Pre-school roster (41 students) matched by DOB + Household Code
-  const enrolledGrade1RosterKeys = new Set<string>([
-    // --- Grade 1 Roster (70-82 months) ---
-    '15/Apr/2020_1M3',   // ឡូត សុវណ្ណពុទ្ធិរាជ (#30)
-    '14/Sep/2020_1M26',  // ឃឿន វ៉ាន់នីន (#1)
-    '06/Sep/2020_1M27',  // សង សុជាតិ (#25)
-    '17/Mar/2020_1M37',  // ឈួង ឆៃយ៉ុទ្ធ (#5)
-    '03/Sep/2020_1M52',  // សាន កូមិន (#26)
-    '26/May/2020_1R17',  // ធី ប៉ាម (#9)
-    '24/Aug/2020_1R18',  // ណូច វណ្ណា (#7)
-    '9/Apr/2020_1R24',   // យ៉ុន យ៉ុងអុី (#17)
-    '13/Oct/2020_1R40',  // ហំ ចាន់សុខធារិទ្ធិ (#29)
-    '26/Mar/2020_1R42',  // រ៉ើន សុវឌ្ឍនា (#21)
-    '19/Aug/2020_1R45',  // ញាស់ ផាវិត (#6)
-    '28/Jul/2020_1R50',  // មាន ឫទ្ធី (#15)
-    '12/Apr/2020_2R33',  // វ៉ុង ពេជ្រសិរីវុទ្ធ (#22)
-    '04/Mar/2020_3R13',  // នេម វ៉ាន់សៀ (#11)
-    '25/Aug/2020_3R20',  // អាន ចរិយា (#31)
-    '03/Apr/2020_3R29',  // វឹង សុខសេរីវឌ្ឍនា (#23)
-    '27/Jul/2020_4R12',  // រ៉ុង កនីកា (#20)
-    '27/Dec/2019_5R3',   // សំរើត វិសាល (#28)
-    '20/May/2020_5R10',  // ម៉េក រ៉ាឈិក (#16)
-    '09/Feb/2020_5R21',  // រ៉ា ដារ៉ូ (#19)
-    '07/Aug/2020_5R25',  // ដា សុនីសា / ដា រ៉ាជាប្រកទី (#3)
-    '14/Jun/2020_5R38',  // ឆាយ កក្ដដា / ផាត កក្កដា (#2)
-    '05/Feb/2020_6R2',   // សង សុជា (#24)
-    '25/May/2020_6R3',   // ទឹម រ៉ាឌី (#8)
-    '12/Jun/2020_6R13',  // ប៉ក់សៀវមិញហុង (#12)
-    '19/Apr/2020_8R45',  // ជួន ដាលីន / ផូន ផាន់រ៉ន (#4)
-    '06/Aug/2020_7R12',  // ផាន ណារី (#14)
-    '04/Apr/2020_7R17',  // ធុល សាន (#10)
-    '08/Nov/2021_3R31',  // សឹង សាយ៉ាន់ / សឹង សែនវ៉ាន់ (#27)
-
-    // --- Pre-school Roster (3-5 years / 41 students) ---
-    '09/Nov/2022_7R2',   // 1. តុល រ៉ាហ្វា
-    '27/Nov/2022_5R35',  // 2. ម៉ៅ លីតា
-    '01/Nov/2022_8R35',  // 3. រើន ជីដូ
-    '26/Dec/2022_5R18',  // 4. រ៉ោ ជីលីកា
-    '19/May/2023_7R33',  // 5. សម្បត្តិ ចាន់ណា
-    '11/Nov/2022_1R48',  // 6. អ៊ី សិទ្ធិកា
-    '02/Nov/2021_8R37',  // 7. ក្អី សាវដា
-    '15/Nov/2021_1M60',  // 9. កឿង ស៊ុនណារ៉ុង
-    '12/Dec/2022_3R36',  // 10. ឈួត ឈីឈិញ
-    '11/Dec/2021_8R50',  // 11. ធី វ៉ាតថាណា
-    '2/Aug/2022_1R19',   // 12 & 13. ណេម ដាវី & ណេម ដាវ៉ាន់
-    '30/Apr/2022_8R1',   // 14. ម៉ុន បួសុគន្ធធានី
-    '11/07/2021_3R4',    // 15. ម៉ៅ ម៉េងសៀ
-    '03/Nov/2021_4R2',   // 16. យឿត កល្យាណ
-    '06/May/2023_8R21',  // 17. រ៉ឺន មុន្នីចេស្តា
-    '19/Dec/2021_1R32',  // 18. វ៉ាន់ ណារីតា
-    '31/May/2022_1M34',  // 19. វ៉ៃ ជីវ៉ា
-    '24/Jun/2022_7R19',  // 20. សាមៀត ម៉ៃធីតា
-    '06/Sep/2022_5R6',   // 21. សារ៉ាត់ សុផានីន
-    '15/Nov/2023_1M38',  // 22. សាលឿម ហ្វីហ្វា
-    '02/Feb/2022_1M77',  // 24. សេង ចន្រ្តា
-    '15/Nov/2020_1R51',  // 25. ហាវ សុវណ្ណបញ្ញារ័ត្ន
-    '10/Aug/2021_8R43',  // 26. ចាន់ ថៃ
-    '07/Jul/2021_4R4',   // 27. ឈាន យូប៊ិន
-    '14/Jun/2021_8R40',  // 28. ទូច សុចាន់
-    '10/Oct/2021_1R17',  // 29. ធី ប៉េម
-    '09/Sep/2023_3R27',  // 30. ផង់ ជំពូ
-    '19/Sep/2021_8R12',  // 31. ភាព ឌីយ៉ា
-    '14/Sep/2022_5R21',  // 32. រ៉ាន់ ភារម្យ
-    '12/Oct/2022_7R8',   // 33. រ៉ុន រស្មី
-    '19/Jul/2021_6R10',  // 34. រ៉ូ វាសនា
-    '01/Oct/2021_6R24',  // 35. លើត លីកា
-    '04/Jul/2021_8R23',  // 36. សាង នីសា
-    '02/Oct/2021_7R20',  // 37. ស៊ឺ វ៉ាន់លេនថាយ / ស៊ី សាកូរ៉ា
-    '14/Sep/2021_2R30',  // 39. សឺត សក្តា
-    '20/Oct/2021_2R18',  // 40. ហៀប ម៉ូលីតា
-    '06/Jul/2021_8R39'   // 41. អឹម កានយ៉ា
-  ]);
 
   let sequenceId = 1;
 
@@ -85,54 +20,61 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
     if (!rowObj) continue;
     const keys = Object.keys(rowObj);
     if (keys.length === 0) continue;
-    
+
     const key = keys[0];
     const row = rowObj[key];
     if (!Array.isArray(row) || row.length < 6) continue;
 
-    // Skip empty filler rows and headers
     const col0 = String(row[0] ?? '').trim();
     const col1 = String(row[1] ?? '').trim();
+    const col2 = String(row[2] ?? '').trim();
     if (!col0 && !col1) continue;
-    if (col0 === 'ID' || col0 === 'គោត្តនាម និង នាម' || col1 === 'គោត្តនាម និង នាម') continue;
+
+    // Skip headers in either legacy or new 2027 format
+    if (
+      col0 === 'last name' ||
+      col0 === 'ID' ||
+      col0 === 'គោត្តនាម និង នាម' ||
+      col1 === 'គោត្តនាម និង នាម'
+    ) {
+      continue;
+    }
 
     let name = '';
     let gender = '';
-    let dob = '';
-    let age = 0;
+    let rawDob = '';
+    let rawAgeField: string | number | undefined = '';
     let relationship = '';
     let occupation = '';
     let householdCode = '';
     let rawVillage = '';
 
-    // Check if col1 is gender ('ប្រុស' or 'ស្រី') => new format with household identifier
-    if (col1 === 'ប្រុស' || col1 === 'ស្រី' || (!isNaN(Number(row[3])) && typeof row[3] !== 'undefined' && isNaN(Number(col0)))) {
+    // Format A (new 2027): [lastName, firstName, gender, dob, age(""), be, occupation, family, village]
+    if (col2 === 'ប្រុស' || col2 === 'ស្រី') {
+      name = [col0, col1].filter(Boolean).join(' ').trim();
+      gender = col2;
+      rawDob = String(row[3] ?? '').trim();
+      rawAgeField = row[4];
+      relationship = String(row[5] ?? '').trim();
+      occupation = String(row[6] ?? '').trim();
+      householdCode = String(row[7] ?? '').trim();
+      rawVillage = row.length > 8 ? String(row[8] ?? '').trim() : '';
+    } else if (col1 === 'ប្រុស' || col1 === 'ស្រី') {
+      // Format B (previous 2026): [fullName, gender, dob, age, relationship, occupation, householdCode, village]
       name = col0;
       gender = col1;
-      dob = String(row[2] ?? '').trim();
-      const rawAge = row[3];
-      if (typeof rawAge === 'number') {
-        age = rawAge;
-      } else if (rawAge) {
-        const parsed = parseInt(String(rawAge).trim(), 10);
-        age = isNaN(parsed) ? 0 : parsed;
-      }
+      rawDob = String(row[2] ?? '').trim();
+      rawAgeField = row[3];
       relationship = String(row[4] ?? '').trim();
       occupation = String(row[5] ?? '').trim();
       householdCode = String(row[6] ?? '').trim();
       rawVillage = row.length > 7 ? String(row[7] ?? '').trim() : '';
     } else {
-      // Legacy format where col0 is ID and col1 is Name
+      // Legacy fallback: [id, fullName, gender, dob, age, relationship, occupation, householdCode, village]
       name = col1;
-      gender = String(row[2] ?? '').trim();
-      dob = String(row[3] ?? '').trim();
-      const rawAge = row[4];
-      if (typeof rawAge === 'number') {
-        age = rawAge;
-      } else if (rawAge) {
-        const parsed = parseInt(String(rawAge).trim(), 10);
-        age = isNaN(parsed) ? 0 : parsed;
-      }
+      gender = col2;
+      rawDob = String(row[3] ?? '').trim();
+      rawAgeField = row[4];
       relationship = String(row[5] ?? '').trim();
       occupation = String(row[6] ?? '').trim();
       householdCode = String(row[7] ?? '').trim();
@@ -141,14 +83,24 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
 
     if (!name) continue;
 
-    // Determine village based on household code (1M* = មុខឈ្នាង, 1R* / other = រោគ) and rawVillage
-    const isMukhChhnang = rawVillage === 'មុខឈ្នាង' || householdCode.includes('M') || householdCode.startsWith('1M');
-    const village = isMukhChhnang ? 'មុខឈ្នាង' : 'រោគ';
-    // User instruction: All current census data belongs to Rouk Primary School catchment (ប.សរោគ)
+    // Parse DOB (preferDayFirst=false for numeric MM/DD/YYYY Excel exports in population JSON; DD/Mon/YYYY is unambiguous)
+    const parsedDobDate = parseDateOfBirth(rawDob, false);
+    const dob = formatDobCanonical(parsedDobDate, rawDob);
+
+    let age = 0;
+    const rawAgeStr = rawAgeField !== undefined && rawAgeField !== null ? String(rawAgeField).trim() : '';
+    if (typeof rawAgeField === 'number' && !isNaN(rawAgeField)) {
+      age = rawAgeField;
+    } else if (rawAgeStr !== '' && !isNaN(Number(rawAgeStr))) {
+      age = parseInt(rawAgeStr, 10);
+    } else {
+      age = calculateAgeYears(dob, 0, new Date(2026, 10, 1), true);
+    }
+
+    // Resolve village strictly using {1-9}M* -> មុខឈ្នាង, {1-9}R* -> រោគ
+    const village = resolveVillageFromHouseholdCode(householdCode, rawVillage);
     const school = 'ប.សរោគ';
-    const finalHhCode = householdCode || (isMukhChhnang ? `1M${sequenceId}` : `1R${sequenceId}`);
-    const rosterKey = `${dob}_${finalHhCode}`;
-    const isEnrolledInRoster = enrolledGrade1RosterKeys.has(rosterKey);
+    const finalHhCode = householdCode || (village === 'មុខឈ្នាង' ? `1M${sequenceId}` : `1R${sequenceId}`);
 
     citizens.push({
       id: sequenceId,
@@ -163,10 +115,29 @@ export function loadParsedCensus(): { citizens: Citizen[]; households: Household
       householdCode: finalHhCode,
       school,
       village,
-      enrollmentStatus: isEnrolledInRoster ? 'enrolled' : 'not_enrolled'
+      enrollmentStatus: 'not_enrolled'
     });
 
     sequenceId++;
+  }
+
+  // Cross-match all students in students2027.json against census citizens to mark enrolled status
+  const rawStudentArray = rawStudents2027 as unknown as Array<Record<string, (string | number)[]>>;
+  const parsedStudents: ParsedRawStudent[] = [];
+  for (let i = 0; i < rawStudentArray.length; i++) {
+    const rowObj = rawStudentArray[i];
+    if (!rowObj) continue;
+    const keys = Object.keys(rowObj);
+    if (keys.length === 0) continue;
+    const parsed = parseRawStudentRow(rowObj[keys[0]], i);
+    if (parsed) parsedStudents.push(parsed);
+  }
+  const matchedMap = matchRawStudentsToCitizens(parsedStudents, citizens);
+  const enrolledCitizenIds = new Set<number>(Array.from(matchedMap.values()).map(c => c.id));
+  for (const c of citizens) {
+    if (enrolledCitizenIds.has(c.id)) {
+      c.enrollmentStatus = 'enrolled';
+    }
   }
 
   // Group by Household Code

@@ -606,6 +606,7 @@ export const CitizensTable: React.FC<CitizensTableProps> = ({
               <option value="auto">ថ្នាក់៖ ស្វ័យប្រវត្តិតាមអាយុ</option>
               <option value="មត្តេយ្យកម្រិតទាប">មត្តេយ្យទាប</option>
               <option value="មត្តេយ្យកម្រិតមធ្យម">មត្តេយ្យមធ្យម</option>
+              <option value="មត្តេយ្យចម្រុះ">មត្តេយ្យចម្រុះ</option>
               <option value="មត្តេយ្យកម្រិតខ្ពស់">មត្តេយ្យខ្ពស់</option>
               <option value="ថ្នាក់ទី១">ថ្នាក់ទី១</option>
               <option value="ថ្នាក់ទី២">ថ្នាក់ទី២</option>
